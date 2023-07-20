@@ -18,11 +18,17 @@ import androidx.lifecycle.ViewModelProvider;
 
 import com.alphawallet.app.C;
 import com.alphawallet.app.R;
+import com.alphawallet.app.analytics.Analytics;
+import com.alphawallet.app.entity.AnalyticsProperties;
 import com.alphawallet.app.entity.ErrorEnvelope;
+import com.alphawallet.app.entity.GasEstimate;
 import com.alphawallet.app.entity.SignAuthenticationCallback;
 import com.alphawallet.app.entity.StandardFunctionInterface;
-import com.alphawallet.app.entity.TransactionData;
+import com.alphawallet.app.entity.TransactionReturn;
 import com.alphawallet.app.entity.Wallet;
+import com.alphawallet.app.entity.WalletType;
+import com.alphawallet.app.entity.analytics.ActionSheetSource;
+import com.alphawallet.app.entity.analytics.TokenSwapEvent;
 import com.alphawallet.app.entity.lifi.Chain;
 import com.alphawallet.app.entity.lifi.Connection;
 import com.alphawallet.app.entity.lifi.Quote;
@@ -42,6 +48,7 @@ import com.alphawallet.app.widget.SwapSettingsDialog;
 import com.alphawallet.app.widget.TokenInfoView;
 import com.alphawallet.app.widget.TokenSelector;
 import com.alphawallet.ethereum.EthereumNetworkBase;
+import com.alphawallet.hardware.SignatureFromKey;
 import com.alphawallet.token.tools.Numeric;
 import com.google.android.material.button.MaterialButton;
 
@@ -86,6 +93,7 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
     private ActivityResultLauncher<Intent> selectSwapProviderLauncher;
     private ActivityResultLauncher<Intent> gasSettingsLauncher;
     private ActivityResultLauncher<Intent> getRoutesLauncher;
+    private AnalyticsProperties confirmationDialogProps;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState)
@@ -237,7 +245,14 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
             @Override
             public void onAmountChanged(String amount)
             {
-                getAvailableRoutes();
+                if (TextUtils.isEmpty(selectedRouteProvider))
+                {
+                    getAvailableRoutes();
+                }
+                else
+                {
+                    getQuote();
+                }
             }
 
             @Override
@@ -249,7 +264,13 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
             @Override
             public void onMaxClicked()
             {
-                String max = viewModel.getBalance(sourceSelector.getToken());
+                Token token = sourceSelector.getToken();
+                if (token == null)
+                {
+                    return;
+                }
+
+                String max = viewModel.getBalance(token);
                 if (!max.isEmpty())
                 {
                     sourceSelector.setAmount(max);
@@ -291,6 +312,7 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
         {
             confirmationDialog.show();
             confirmationDialog.fullExpand();
+            viewModel.track(Analytics.Navigation.ACTION_SHEET_FOR_TRANSACTION_CONFIRMATION, confirmationDialogProps);
         }
     }
 
@@ -305,7 +327,12 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
                     "", w3Tx.recipient.toString(), viewModel.getTokensService(), this);
             confDialog.setURL(quote.swapProvider.name);
             confDialog.setCanceledOnTouchOutside(false);
-            confDialog.setGasEstimate(Numeric.toBigInt(quote.transactionRequest.gasLimit));
+            confDialog.setGasEstimate(new GasEstimate(Numeric.toBigInt(quote.transactionRequest.gasLimit)));
+
+            confirmationDialogProps = new AnalyticsProperties();
+            confirmationDialogProps.put(Analytics.PROPS_ACTION_SHEET_SOURCE, ActionSheetSource.SWAP.getValue());
+            confirmationDialogProps.put(Analytics.PROPS_SWAP_FROM_TOKEN, quote.action.fromToken.symbol);
+            confirmationDialogProps.put(Analytics.PROPS_SWAP_TO_TOKEN, quote.action.toToken.symbol);
         }
         catch (Exception e)
         {
@@ -322,6 +349,8 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
         infoLayout.setVisibility(View.GONE);
 
         destTokenDialog.setSelectedToken(token.address);
+
+        selectedRouteProvider = "";
 
         getAvailableRoutes();
     }
@@ -345,6 +374,8 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
 
         sourceToken = token;
 
+        selectedRouteProvider = "";
+
         getAvailableRoutes();
     }
 
@@ -352,6 +383,10 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
     protected void onResume()
     {
         super.onResume();
+        AnalyticsProperties props = new AnalyticsProperties();
+        props.put(TokenSwapEvent.KEY, TokenSwapEvent.NATIVE_SWAP.getValue());
+        viewModel.track(Analytics.Navigation.TOKEN_SWAP);
+
         if (settingsDialog != null)
         {
             settingsDialog.setSwapProviders(viewModel.getPreferredSwapProviders());
@@ -531,6 +566,11 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
     {
         if (!TextUtils.isEmpty(selectedRouteProvider))
         {
+            if (errorDialog != null && errorDialog.isShowing())
+            {
+                errorDialog.dismiss();
+            }
+
             viewModel.getQuote(
                     sourceSelector.getToken(),
                     destSelector.getToken(),
@@ -611,19 +651,19 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
         }
     }
 
-    private void txWritten(TransactionData transactionData)
+    private void txWritten(TransactionReturn transactionReturn)
     {
         AWalletAlertDialog successDialog = new AWalletAlertDialog(this);
         successDialog.setTitle(R.string.transaction_succeeded);
-        successDialog.setMessage(transactionData.txHash);
+        successDialog.setMessage(transactionReturn.hash);
         successDialog.show();
     }
 
-    private void txError(Throwable throwable)
+    private void txError(TransactionReturn txError)
     {
         AWalletAlertDialog errorDialog = new AWalletAlertDialog(this);
         errorDialog.setTitle(R.string.error_transaction_failed);
-        errorDialog.setMessage(throwable.getMessage());
+        errorDialog.setMessage(txError.throwable.getMessage());
         errorDialog.show();
     }
 
@@ -648,6 +688,7 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
                 });
                 errorDialog.setSecondaryButton(R.string.action_cancel, v -> errorDialog.dismiss());
                 errorDialog.show();
+                viewModel.trackError(Analytics.Error.TOKEN_SWAP, errorEnvelope.message);
                 break;
             case C.ErrorCode.SWAP_QUOTE_ERROR:
                 errorDialog = new AWalletAlertDialog(this);
@@ -659,6 +700,7 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
                 });
                 errorDialog.setSecondaryButton(R.string.action_cancel, v -> errorDialog.dismiss());
                 errorDialog.show();
+                viewModel.trackError(Analytics.Error.TOKEN_SWAP, errorEnvelope.message);
                 break;
             default:
                 errorDialog = new AWalletAlertDialog(this);
@@ -666,6 +708,7 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
                 errorDialog.setMessage(errorEnvelope.message);
                 errorDialog.setButton(R.string.action_cancel, v -> errorDialog.dismiss());
                 errorDialog.show();
+                viewModel.trackError(Analytics.Error.TOKEN_SWAP, errorEnvelope.message);
                 break;
         }
     }
@@ -693,30 +736,59 @@ public class SwapActivity extends BaseActivity implements StandardFunctionInterf
     @Override
     public void getAuthorisation(SignAuthenticationCallback callback)
     {
-        viewModel.getAuthentication(this, wallet, callback);
+        if (wallet.type != WalletType.WATCH)
+        {
+            viewModel.getAuthentication(this, wallet, callback);
+        }
+        else
+        {
+            confirmationDialog.dismiss();
+            errorDialog = new AWalletAlertDialog(this);
+            errorDialog.setTitle(R.string.title_dialog_error);
+            errorDialog.setMessage(getString(R.string.error_message_watch_only_wallet));
+            errorDialog.setButton(R.string.dialog_ok, v -> errorDialog.dismiss());
+            errorDialog.show();
+        }
     }
 
     @Override
     public void sendTransaction(Web3Transaction tx)
     {
-        viewModel.sendTransaction(tx, wallet, settingsDialog.getSelectedChainId());
+        viewModel.requestSignature(tx, wallet, token.tokenInfo.chainId);
+    }
+
+    @Override
+    public void completeSendTransaction(Web3Transaction tx, SignatureFromKey signature)
+    {
+        //return from hardware
+        viewModel.sendTransaction(wallet, token.tokenInfo.chainId, tx, signature);
     }
 
     @Override
     public void dismissed(String txHash, long callbackId, boolean actionCompleted)
     {
-
+        if (!actionCompleted && TextUtils.isEmpty(txHash))
+        {
+            viewModel.track(Analytics.Action.ACTION_SHEET_CANCELLED, confirmationDialogProps);
+        }
     }
 
     @Override
     public void notifyConfirm(String mode)
     {
-
+        confirmationDialogProps.put(Analytics.PROPS_ACTION_SHEET_MODE, mode);
+        viewModel.track(Analytics.Action.ACTION_SHEET_COMPLETED, confirmationDialogProps);
     }
 
     @Override
     public ActivityResultLauncher<Intent> gasSelectLauncher()
     {
         return gasSettingsLauncher;
+    }
+
+    @Override
+    public WalletType getWalletType()
+    {
+        return wallet.type;
     }
 }

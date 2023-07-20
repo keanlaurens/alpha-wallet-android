@@ -37,7 +37,7 @@ public class TokenTransferData extends ActivityMeta implements Parcelable
         this.transferDetail = transferDetail;
     }
 
-    public int getTitle(Transaction tx)
+    public int getTitle()
     {
         //catch standard Token events
         switch (eventName)
@@ -168,7 +168,7 @@ public class TokenTransferData extends ActivityMeta implements Parcelable
                 EventResult eResult = resultMap.get("from");
                 if (eResult != null)
                 {
-                    if (tx != null && eResult.value.equals(ZERO_ADDRESS))
+                    if (tx != null && eResult.value.equals(ZERO_ADDRESS) && t != null)
                     {
                         return t.getFullName();
                     }

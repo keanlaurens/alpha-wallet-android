@@ -443,6 +443,7 @@
     <string name="search_or_type_web_address">Search or type web address</string>
     <string name="network">Networks</string>
     <string name="select_active_networks">Select Active Networks</string>
+    <string name="title_enabled_networks">Enabled Networks (%s)</string>
     <string name="collectibles">Collectibles</string>
     <string name="token_function">Token Function</string>
     <string name="channel_description">Alphawallet notification channel</string>
@@ -784,7 +785,6 @@
     <string name="action_enable_testnet">Got it, enable Testnet</string>
     <string name="message_dialog_testnet">Testnets tokens are like \'Monopoly\' money. They have zero financial worth but are used by developers to try out new designs without needing to spend valuable coins.</string>
     <string name="select_dappbrowser_network">Connect to Network</string>
-    <string name="choose_network_preference">Choose Network Preference</string>
     <string name="please_select_at_least_one_network">Please select at least one network.</string>
     <string name="token_info_portfolio">Portfolio</string>
     <string name="enter_target_price">Enter Target Price</string>
@@ -888,7 +888,7 @@
     <string name="unknown_network_title">Unknown Network</string>
     <string name="unknown_network">This dapp is requesting to change to an unknown chain: %1$s</string>
     <string name="switch_and_reload"><![CDATA[Switch & Reload]]></string>
-    <string name="wc_no_active_sessions">No Active sessions</string>
+    <string name="wc_no_active_sessions">No active sessions</string>
     <string name="wc_connect_wallet">Connect Wallet</string>
     <string name="error_seed_phrase_must_words">Seed phrase can only contain words</string>
     <string name="label_token_id" translatable="false">Token #</string>
@@ -912,6 +912,14 @@
     <string name="trait_rarity_suppl_text">%1$s%% have this trait</string>
     <string name="experimental_1559">Use 1559 Transactions</string>
     <string name="experimental_1559_tx_sub">Experimental 1559 Transactions</string>
+    <string name="wc_methods">Methods</string>
+    <string name="wc_events">Events</string>
+    <string name="wc_card_title" translatable="false">WalletConnect</string>
+    <string name="wc_card_subtitle">Active connection to browser-based Dapp</string>
+    <string name="wc_disconnect">User disconnect the session.</string>
+    <string name="wc_sign_dapp_name">Name</string>
+    <string name="wc_wallet">Wallet</string>
+    <string name="wc_wallet_not_match">Wallet not exist or it\'s watch only</string>
     <string name="chain_id">Chain ID: %1d</string>
     <string name="asset_creator">Created By</string>
     <string name="asset_schema">Token Standard</string>
@@ -952,10 +960,10 @@
     <string name="node_status_strong">under 1 second</string>
     <string name="mode_status_medium">over 1 second</string>
     <string name="node_status_not_responding">not responding</string>
-    <string name="mode_test">Testnet Mode</string>
-    <string name="title_dialog_where_are_tokens">Where are my Tokens?</string>
-    <string name="content_dialog_where_are_tokens">Don\'t worry. Your tokens are safe. You are viewing Testnet networks. They are used by developers to try out new designs. You can switch to Mainnet any time.</string>
-    <string name="button_switch_to_mainnet">Switch to Mainnet</string>
+    <string name="chain_not_support">Chain %s is not supported.</string>
+    <string name="network_must_be_enabled">Network %s must be enabled before connecting.</string>
+    <string name="notify_wallet_connect_title">WalletConnect is active</string>
+    <string name="notify_wallet_connect_content">Click to view active sessions</string>
     <string name="action_select_token">Select Token</string>
     <string name="label_slippage_custom">Custom</string>
     <string name="misc_percentage" translatable="false">%</string>
@@ -1003,4 +1011,51 @@
     <string name="message_no_routes_found_for_the_given_parameters">No routes found for the given parameters.</string>
     <string name="message_select_one_exchange">Select at least one exchange.</string>
     <string name="deprecated">Deprecated</string>
+    <string name="error_message_watch_only_wallet">Could not perform action on this Watch-only wallet.</string>
+    <string name="toast_wait_to_scan_chains">Scanning in progress: Please wait for completion</string>
+    <string name="unselected_token">Enable chains for selected tokens?</string>
+    <string name="no_title">(No title)</string>
+    <string name="title_session_details">Session Details</string>
+    <string name="title_session_proposal">Session Proposal</string>
+    <string name="message_wc_wallet_different_from_active_wallet">Wallet different from active wallet.</string>
+    <string name="settings_title_analytics">Analytics</string>
+    <string name="settings_title_crash_reporting">Crash Reporting</string>
+    <string name="message_share_anonymous_data">Help us to improve AlphaWallet by sharing your anonymous data with us. This does not include any financial information.</string>
+    <string name="share_anonymous_data">Share Anonymous Data?</string>
+    <string name="enable_required_chains">Enable required chains?</string>
+    <string name="enable_required_chains_message">Selected tokens are on chains currently not selected, enable unselected chains?</string>
+    <string name="dialog_title_search_token">Search for Token?</string>
+    <string name="hardware_wallets">Hardware Wallets</string>
+    <string name="use_hardware_card">Use Hardware Card</string>
+    <string name="unsupported_network">Unsupported Network (Chain ID: %s)</string>
+    <string name="error_eip712_unsupported_network">You were requested to sign a message for an unsupported chain. (ID: %s)</string>
+    <string name="error_eip712_incompatible_network">You were requested to sign a message for the %1s chain. You are currently on the %2s chain.</string>
+    <string name="error_eip712_wc2_disabled_network">You were requested to sign a message for the %1s chain. Please enable this chain for your WalletConnect session.</string>
+    <string name="action_view_session">View Session</string>
+    <string name="error_walletconnect_session_request_unsupported_network">Unable to handle session request from an unsupported chain. (ID: %s)</string>
+    <string name="spam_header">Spam</string>
+    <string name="create_shortcut_for_token">Create a shortcut for this token?</string>
+    <string name="toast_shortcut_created">Shortcut created, long press app icon to see it.</string>
+    <string name="warn_asset_not_belongs_to_active_wallet">Before performing any operation, keep in mind that the current NFT does not belong to the current active wallet, but to %1$s.</string>
+    <string name="remove_shortcut_reminder">Transferring this token will remove the associated shortcut from the home screen.</string>
+    <string name="remove_shortcut_while_token_not_found">Token does not exist, remove the shortcut?</string>
+    <string name="title_remove_shortcut">Remove Shortcut</string>
+    <string name="dialog_title_sign_in_with_ethereum">Sign in with Ethereum</string>
+    <string name="attestations_header">Attestations</string>
+    <string name="attestation">Attestation</string>
+    <string name="dialog_title_gas_estimation_failed">Gas Estimation Failed</string>
+    <string name="dialog_message_gas_estimation_failed">Gas estimation errored: \"%s\". The transaction execution will likely fail. Do you want to force sending?</string>
+    <string name="action_proceed">Proceed</string>
+    <string name="setting_title_notification_incoming_tokens">Incoming Tokens</string>
+    <string name="setting_description_notification_incoming_tokens">Show notifications when tokens are received by your active wallet.</string>
+    <string name="notification_message_incoming_token_with_recipient">Wallet %1s has received %2s from %3s. Tap here to view transaction details.</string>
+    <string name="notification_message_incoming_token">Wallet %1s has received %2s. Tap here to view transaction details.</string>
+    <string name="btn_ok_request_post_notifications_permission">I want to receive notifications</string>
+    <string name="btn_skip">Skip for now</string>
+    <string name="body_request_post_notifications_permission">While AlphaWallet is in the background, it can send you notifications for various events, like when your wallet receives tokens.</string>
+    <string name="title_request_post_notifications_permission">Get notified</string>
+    <string name="message_deny_request_post_notifications_permission">You will not receive notifications while AlphaWallet is in the background. You can change this by going to Settings > Notifications</string>
+    <string name="minted">Minted</string>
+    <string name="valid_from">Valid From</string>
+    <string name="valid_until">Valid Until</string>
 </resources>

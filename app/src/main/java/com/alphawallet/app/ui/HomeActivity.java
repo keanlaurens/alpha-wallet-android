@@ -4,6 +4,7 @@ import static androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRAN
 import static com.alphawallet.app.C.ADDED_TOKEN;
 import static com.alphawallet.app.C.CHANGED_LOCALE;
 import static com.alphawallet.app.C.CHANGE_CURRENCY;
+import static com.alphawallet.app.C.QRCODE_SCAN;
 import static com.alphawallet.app.C.RESET_TOOLBAR;
 import static com.alphawallet.app.C.RESET_WALLET;
 import static com.alphawallet.app.C.SETTINGS_INSTANTIATED;
@@ -27,7 +28,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
-import android.view.Menu;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -39,66 +39,82 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.core.content.FileProvider;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.lifecycle.Lifecycle;
-import androidx.lifecycle.LifecycleObserver;
-import androidx.lifecycle.OnLifecycleEvent;
+import androidx.lifecycle.LifecycleEventObserver;
+import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 import androidx.viewpager2.widget.ViewPager2;
 
-import com.alphawallet.app.BuildConfig;
 import com.alphawallet.app.C;
 import com.alphawallet.app.R;
+import com.alphawallet.app.analytics.Analytics;
 import com.alphawallet.app.api.v1.entity.request.ApiV1Request;
 import com.alphawallet.app.entity.ContractLocator;
 import com.alphawallet.app.entity.CryptoFunctions;
 import com.alphawallet.app.entity.CustomViewSettings;
+import com.alphawallet.app.entity.EIP681Type;
 import com.alphawallet.app.entity.ErrorEnvelope;
 import com.alphawallet.app.entity.FragmentMessenger;
 import com.alphawallet.app.entity.HomeCommsInterface;
 import com.alphawallet.app.entity.HomeReceiver;
-import com.alphawallet.app.entity.Operation;
+import com.alphawallet.app.entity.MediaLinks;
+import com.alphawallet.app.entity.QRResult;
 import com.alphawallet.app.entity.SignAuthenticationCallback;
 import com.alphawallet.app.entity.Wallet;
 import com.alphawallet.app.entity.WalletPage;
+import com.alphawallet.app.entity.WalletType;
 import com.alphawallet.app.repository.EthereumNetworkRepository;
 import com.alphawallet.app.router.ImportTokenRouter;
 import com.alphawallet.app.service.NotificationService;
 import com.alphawallet.app.service.PriceAlertsService;
+import com.alphawallet.app.ui.widget.entity.ActionSheetCallback;
 import com.alphawallet.app.ui.widget.entity.PagerCallback;
 import com.alphawallet.app.util.LocaleUtils;
+import com.alphawallet.app.util.PermissionUtils;
 import com.alphawallet.app.util.UpdateUtils;
 import com.alphawallet.app.util.Utils;
 import com.alphawallet.app.viewmodel.BaseNavigationActivity;
 import com.alphawallet.app.viewmodel.HomeViewModel;
-import com.alphawallet.app.walletconnect.WCSession;
+import com.alphawallet.app.viewmodel.WalletConnectViewModel;
+import com.alphawallet.app.walletconnect.AWWalletConnectClient;
+import com.alphawallet.app.walletconnect.util.WalletConnectHelper;
+import com.alphawallet.app.web3.entity.Web3Transaction;
 import com.alphawallet.app.widget.AWalletAlertDialog;
 import com.alphawallet.app.widget.AWalletConfirmationDialog;
 import com.alphawallet.app.widget.SignTransactionDialog;
+import com.alphawallet.hardware.SignatureFromKey;
 import com.alphawallet.token.entity.SalesOrderMalformed;
+import com.alphawallet.token.entity.Signable;
+import com.alphawallet.token.tools.Numeric;
 import com.alphawallet.token.tools.ParseMagicLink;
 import com.github.florent37.tutoshowcase.TutoShowcase;
+import com.google.zxing.client.android.Intents;
+import com.journeyapps.barcodescanner.ScanContract;
+import com.journeyapps.barcodescanner.ScanOptions;
 
 import net.yslibrary.android.keyboardvisibilityevent.KeyboardVisibilityEvent;
 
-import java.io.File;
-import java.lang.reflect.Method;
 import java.net.URLDecoder;
 import java.util.List;
+
+import javax.inject.Inject;
 
 import dagger.hilt.android.AndroidEntryPoint;
 import timber.log.Timber;
 
 @AndroidEntryPoint
 public class HomeActivity extends BaseNavigationActivity implements View.OnClickListener, HomeCommsInterface,
-        FragmentMessenger, Runnable, SignAuthenticationCallback, LifecycleObserver, PagerCallback
+        FragmentMessenger, Runnable, ActionSheetCallback, LifecycleEventObserver, PagerCallback
 {
+    @Inject
+    AWWalletConnectClient awWalletConnectClient;
+
     public static final int RC_ASSET_EXTERNAL_WRITE_PERM = 223;
     public static final int RC_ASSET_NOTIFICATION_PERM = 224;
     public static final int DAPP_BARCODE_READER_REQUEST_CODE = 1;
@@ -113,6 +129,7 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
             result -> getSupportFragmentManager().setFragmentResult(RESET_TOKEN_SERVICE, new Bundle()));
 
     private HomeViewModel viewModel;
+    private WalletConnectViewModel viewModelWC;
     private Dialog dialog;
     private ViewPager2 viewPager;
     private LinearLayout successOverlay;
@@ -123,6 +140,18 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
     private boolean isForeground;
     private volatile boolean tokenClicked = false;
     private String openLink;
+    private final ActivityResultLauncher<String> requestPermissionLauncher =
+        registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+            if (isGranted)
+            {
+                // FCM SDK (and your app) can post notifications.
+                viewModel.subscribeToNotifications();
+            }
+            else
+            {
+                Toast.makeText(this, getString(R.string.message_deny_request_post_notifications_permission), Toast.LENGTH_LONG).show();
+            }
+        });
 
     public HomeActivity()
     {
@@ -137,34 +166,36 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         updatePrompt = true;
     }
 
-    @OnLifecycleEvent(Lifecycle.Event.ON_START)
-    private void onMoveToForeground()
-    {
-        Timber.tag("LIFE").d("AlphaWallet into foreground");
-        if (viewModel != null)
-        {
-            viewModel.checkTransactionEngine();
-            viewModel.sendMsgPumpToWC(this);
-        }
-        isForeground = true;
-    }
-
-    @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
-    private void onMoveToBackground()
-    {
-        Timber.tag("LIFE").d("AlphaWallet into background");
-        if (viewModel != null && !tokenClicked) viewModel.stopTransactionUpdate();
-        if (viewModel != null) viewModel.outOfFocus();
-        isForeground = false;
-    }
-
     @Override
-    public void onTrimMemory(int level)
+    public void onStateChanged(@NonNull LifecycleOwner source, @NonNull Lifecycle.Event event)
     {
-        super.onTrimMemory(level);
-        if (!isForeground)
+        switch (event)
         {
-            onMoveToBackground();
+            case ON_CREATE:
+                break;
+            case ON_START:
+                Timber.tag("LIFE").d("AlphaWallet into foreground");
+                if (viewModel != null)
+                {
+                    viewModel.checkTransactionEngine();
+                    viewModel.sendMsgPumpToWC(this);
+                }
+                isForeground = true;
+                break;
+            case ON_RESUME:
+                break;
+            case ON_PAUSE:
+                break;
+            case ON_STOP:
+                Timber.tag("LIFE").d("AlphaWallet into background");
+                if (viewModel != null && !tokenClicked) viewModel.stopTransactionUpdate();
+                if (viewModel != null) viewModel.outOfFocus();
+                isForeground = false;
+                break;
+            case ON_DESTROY:
+                break;
+            case ON_ANY:
+                break;
         }
     }
 
@@ -199,11 +230,15 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         LocaleUtils.setActiveLocale(this);
         getLifecycle().addObserver(this);
         isForeground = true;
+        setWCConnect();
 
         if (getSupportActionBar() != null) getSupportActionBar().hide();
 
         viewModel = new ViewModelProvider(this)
                 .get(HomeViewModel.class);
+        viewModelWC = new ViewModelProvider(this)
+                .get(WalletConnectViewModel.class);
+
         viewModel.identify();
         viewModel.setWalletStartup();
         viewModel.setCurrencyAndLocale(this);
@@ -242,11 +277,11 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         dissableDisplayHomeAsUp();
 
         viewModel.error().observe(this, this::onError);
-        viewModel.installIntent().observe(this, this::onInstallIntent);
         viewModel.walletName().observe(this, this::onWalletName);
         viewModel.backUpMessage().observe(this, this::onBackup);
         viewModel.splashReset().observe(this, this::onRequireInit);
         viewModel.defaultWallet().observe(this, this::onDefaultWallet);
+        viewModel.updateAvailable().observe(this, this::onUpdateAvailable);
 
         if (CustomViewSettings.hideDappBrowser())
         {
@@ -277,8 +312,10 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         }
         else
         {
-            //TODO: Check we are using latest version on github, since we're using a downloaded/manually installed version
-            //First check that this the package name is "io.stormbird.wallet" - it could be a fork
+            if (MediaLinks.isMediaTargeted(getApplicationContext()))
+            {
+                viewModel.checkLatestGithubRelease();
+            }
         }
 
         setupFragmentListeners();
@@ -307,12 +344,39 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         startService(i);
     }
 
+    private void onUpdateAvailable(String availableVersion)
+    {
+        externalUpdateReady(availableVersion);
+    }
+
+    private void setWCConnect()
+    {
+        try
+        {
+            awWalletConnectClient.setCallback(this);
+        }
+        catch (Exception e)
+        {
+            Timber.tag("WalletConnect").e(e);
+        }
+    }
+
     private void onDefaultWallet(Wallet wallet)
     {
+        // TODO: [Notifications] Uncomment once backend service is implemented
+//        if (!viewModel.isWatchOnlyWallet() && !viewModel.isPostNotificationsPermissionRequested(wallet.address))
+//        {
+//            viewModel.setPostNotificationsPermissionRequested(wallet.address);
+//            if (PermissionUtils.requestPostNotificationsPermission(this, requestPermissionLauncher))
+//            {
+//                viewModel.subscribeToNotifications();
+//            }
+//        }
+
         if (viewModel.checkNewWallet(wallet.address))
         {
             viewModel.setNewWallet(wallet.address, false);
-            Intent selectNetworkIntent = new Intent(this, SelectNetworkFilterActivity.class);
+            Intent selectNetworkIntent = new Intent(this, NetworkToggleActivity.class);
             selectNetworkIntent.putExtra(C.EXTRA_SINGLE_ITEM, false);
             networkSettingsHandler.launch(selectNetworkIntent);
         }
@@ -391,7 +455,27 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
                 {
                     loadingComplete();
                 });
+
+        getSupportFragmentManager()
+                .setFragmentResultListener(QRCODE_SCAN, this, (requestKey, b) ->
+                {
+                    ScanOptions options = Utils.getQRScanOptions(this);
+                    qrCodeScanner.launch(options);
+                });
     }
+
+    //TODO: Implement all QR scan using thie method
+    private final ActivityResultLauncher<ScanOptions> qrCodeScanner = registerForActivityResult(new ScanContract(),
+            result -> {
+                if(result.getContents() == null)
+                {
+                    Toast.makeText(this, R.string.toast_invalid_code, Toast.LENGTH_SHORT).show();
+                }
+                else
+                {
+                    viewModel.handleQRCode(this, result.getContents());
+                }
+            });
 
     @Override
     public void onNewIntent(Intent startIntent)
@@ -502,6 +586,7 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
     protected void onResume()
     {
         super.onResume();
+        setWCConnect();
         viewModel.prepare(this);
         viewModel.getWalletName(this);
         viewModel.setErrorCallback(this);
@@ -709,11 +794,17 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
     }
 
     @Override
-    public void updateReady(int updateVersion)
+    public void playStoreUpdateReady(int updateVersion)
     {
         //signal to WalletFragment an update is ready
         //display entry in the WalletView
-        getFragment(SETTINGS).signalUpdate(updateVersion);
+        getFragment(SETTINGS).signalPlayStoreUpdate(updateVersion);
+    }
+
+    @Override
+    public void externalUpdateReady(String updateVersion)
+    {
+        getFragment(SETTINGS).signalExternalUpdate(updateVersion);
     }
 
     @Override
@@ -772,25 +863,6 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
             successOverlay.setVisibility(View.GONE);
             successOverlay.setAlpha(1.0f);
         }
-    }
-
-    @Override
-    public void gotAuthorisation(boolean gotAuth)
-    {
-
-    }
-
-    @Override
-    public void cancelAuthentication()
-    {
-
-    }
-
-    @Override
-    public void createdKey(String keyAddress)
-    {
-        //Key was upgraded
-        //viewModel.upgradeWallet(keyAddress);
     }
 
     @Override
@@ -863,13 +935,10 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
     @Override
     public void openWalletConnect(String sessionId)
     {
-        if (isForeground)
-        {
-            Intent intent = new Intent(getApplication(), WalletConnectActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-            intent.putExtra("session", sessionId);
-            startActivity(intent);
-        }
+        Intent intent = new Intent(getApplication(), WalletConnectActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        intent.putExtra("session", sessionId);
+        startActivity(intent);
     }
 
     private void hideDialog()
@@ -925,38 +994,12 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         }
     }
 
-    private void onInstallIntent(File installFile)
-    {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
-        {
-            String authority = BuildConfig.APPLICATION_ID + ".fileprovider";
-            Uri apkUri = FileProvider.getUriForFile(getApplicationContext(), authority, installFile);
-            Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
-            intent.setData(apkUri);
-            intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(intent);
-        }
-        else
-        {
-            Uri apkUri = Uri.fromFile(installFile);
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-        }
-
-        //Blank install time here so that next time the app runs the install time will be correctly set up
-        viewModel.setInstallTime(0);
-        finish();
-    }
-
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data)
     {
-        Operation taskCode = null;
+        super.onActivityResult(requestCode, resultCode, data); // intercept return intent from PIN/Swipe authentications
         if (requestCode >= SignTransactionDialog.REQUEST_CODE_CONFIRM_DEVICE_CREDENTIALS && requestCode <= SignTransactionDialog.REQUEST_CODE_CONFIRM_DEVICE_CREDENTIALS + 10)
         {
-            taskCode = Operation.values()[requestCode - SignTransactionDialog.REQUEST_CODE_CONFIRM_DEVICE_CREDENTIALS];
             requestCode = SignTransactionDialog.REQUEST_CODE_CONFIRM_DEVICE_CREDENTIALS;
         }
 
@@ -965,6 +1008,12 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
             case DAPP_BARCODE_READER_REQUEST_CODE:
                 getFragment(DAPP_BROWSER).handleQRCode(resultCode, data, this);
                 break;
+            case SignTransactionDialog.REQUEST_CODE_CONFIRM_DEVICE_CREDENTIALS:
+                if (getSelectedItem() == DAPP_BROWSER)
+                {
+                    getFragment(DAPP_BROWSER).pinAuthorisation(resultCode == RESULT_OK);
+                }
+                break;
             case C.REQUEST_BACKUP_WALLET:
                 String keyBackup = null;
                 boolean noLockScreen = false;
@@ -972,16 +1021,6 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
                 if (data != null) noLockScreen = data.getBooleanExtra("nolock", false);
                 if (resultCode == RESULT_OK) backupWalletSuccess(keyBackup);
                 else backupWalletFail(keyBackup, noLockScreen);
-                break;
-            case SignTransactionDialog.REQUEST_CODE_CONFIRM_DEVICE_CREDENTIALS:
-                switch (getSelectedItem())
-                {
-                    case DAPP_BROWSER:
-                        getFragment(DAPP_BROWSER).pinAuthorisation(resultCode == RESULT_OK);
-                        break;
-                    default:
-                        break;
-                }
                 break;
             case C.REQUEST_UNIVERSAL_SCAN:
                 if (data != null && resultCode == Activity.RESULT_OK)
@@ -1027,35 +1066,17 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
                     List<ContractLocator> tokenData = data.getParcelableArrayListExtra(C.EXTRA_TOKENID_LIST);
                     getFragment(ACTIVITY).addedToken(tokenData);
                 }
+                else if (data != null && data.getBooleanExtra(RESET_WALLET, false))
+                {
+                    viewModel.restartTokensService();
+                    //trigger wallet adapter reset
+                    resetTokens();
+                }
                 break;
             default:
                 super.onActivityResult(requestCode, resultCode, data);
                 break;
         }
-    }
-
-    @SuppressLint("RestrictedApi")
-    @Override
-    protected boolean onPrepareOptionsPanel(View view, Menu menu)
-    {
-        if (menu != null)
-        {
-            if (menu.getClass().getSimpleName().equals("MenuBuilder"))
-            {
-                try
-                {
-                    Method m = menu.getClass().getDeclaredMethod(
-                            "setOptionalIconsVisible", Boolean.TYPE);
-                    m.setAccessible(true);
-                    m.invoke(menu, true);
-                }
-                catch (Exception e)
-                {
-                    Timber.e(e, "onMenuOpened...unable to set icons for overflow menu");
-                }
-            }
-        }
-        return super.onPrepareOptionsPanel(view, menu);
     }
 
     void postponeWalletBackupWarning(String walletAddress)
@@ -1079,11 +1100,6 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         {
             super.onBackPressed();
         }
-    }
-
-    public void useActionSheet(String mode)
-    {
-        viewModel.actionSheetConfirm(mode);
     }
 
     private void hideSystemUI()
@@ -1127,6 +1143,7 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
                 {
                     Intent intent = new Intent(this, ApiV1Activity.class);
                     intent.putExtra(C.Key.API_V1_REQUEST_URL, importData);
+                    viewModel.track(Analytics.Action.DEEP_LINK_API_V1);
                     startActivity(intent);
                     return;
                 }
@@ -1138,8 +1155,9 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
                     String link = importData.substring(directLinkIndex + AW_MAGICLINK_DIRECT.length());
                     if (getSupportFragmentManager().getFragments().size() >= DAPP_BROWSER.ordinal())
                     {
+                        viewModel.track(Analytics.Action.DEEP_LINK);
                         showPage(DAPP_BROWSER);
-                        if (!dappFrag.isDetached()) dappFrag.loadDirect(link);
+                        //if (!dappFrag.isDetached()) dappFrag.loadDirect(link);
                     }
                     else
                     {
@@ -1158,17 +1176,26 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
             }
             else if (importData != null && importData.startsWith("wc:"))
             {
-                WCSession session = WCSession.Companion.from(importData);
-                String importPassData = WalletConnectActivity.WC_INTENT + importData;
-                Intent intent = new Intent(this, WalletConnectActivity.class);
-                intent.putExtra("qrCode", importPassData);
+                Intent intent;
+
+                if (WalletConnectHelper.isWalletConnectV1(importData))
+                {
+                    intent = new Intent(this, WalletConnectActivity.class);
+                    intent.putExtra("qrCode", WalletConnectActivity.WC_INTENT + importData);
+                }
+                else
+                {
+                    intent = new Intent(this, WalletConnectV2Activity.class);
+                    intent.putExtra("url", importData);
+                }
+
                 intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+
                 startActivity(intent);
             }
             else if (importPath != null)
             {
-                boolean useAppExternalDir = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q || !viewModel.checkDebugDirectory();
-                viewModel.importScriptFile(this, useAppExternalDir, startIntent);
+                viewModel.importScriptFile(this, startIntent);
             }
         }
         catch (SalesOrderMalformed s)
@@ -1179,6 +1206,70 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         {
             Timber.tag("Intent").w(e);
         }
+    }
+
+    @Override
+    public void signingComplete(SignatureFromKey signature, Signable message)
+    {
+        String signHex = Numeric.toHexString(signature.signature);
+        Timber.d("Initial Msg: %s", message.getMessage());
+        awWalletConnectClient.signComplete(signature, message);
+    }
+
+    @Override
+    public void signingFailed(Throwable error, Signable message)
+    {
+        awWalletConnectClient.signFail(error.getMessage(), message);
+    }
+
+    @Override
+    public WalletType getWalletType()
+    {
+        return viewModel.defaultWallet().getValue().type;
+    }
+
+    @Override
+    public void getAuthorisation(SignAuthenticationCallback callback)
+    {
+        viewModelWC.getAuthenticationForSignature(viewModel.defaultWallet().getValue(), this, callback);
+    }
+
+    @Override
+    public void sendTransaction(Web3Transaction tx)
+    {
+
+    }
+
+    @Override
+    public void completeSendTransaction(Web3Transaction tx, SignatureFromKey signature)
+    {
+
+    }
+
+    @Override
+    public void dismissed(String txHash, long callbackId, boolean actionCompleted)
+    {
+        if (!actionCompleted)
+        {
+            awWalletConnectClient.dismissed(callbackId);
+        }
+    }
+
+    @Override
+    public void notifyConfirm(String mode)
+    {
+
+    }
+
+    //TODO: Implement when passing transactions through here
+    ActivityResultLauncher<Intent> getGasSettings = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+            result -> { //awWalletConnectClient.setCurrentGasIndex(result));
+            });
+
+    @Override
+    public ActivityResultLauncher<Intent> gasSelectLauncher()
+    {
+        return getGasSettings;
     }
 
     private static class ScreenSlidePagerAdapter extends FragmentStateAdapter
@@ -1218,5 +1309,25 @@ public class HomeActivity extends BaseNavigationActivity implements View.OnClick
         {
             return WalletPage.values().length;
         }
+    }
+
+    public void importAttestation(QRResult attestation)
+    {
+        if (attestation.type != EIP681Type.ATTESTATION)
+        {
+            return;
+        }
+
+        ((WalletFragment)getFragment(WALLET)).importAttestation(attestation);
+    }
+
+    public void importEASAttestation(QRResult attestation)
+    {
+        if (attestation.type != EIP681Type.EAS_ATTESTATION)
+        {
+            return;
+        }
+
+        ((WalletFragment)getFragment(WALLET)).importEASAttestation(attestation);
     }
 }

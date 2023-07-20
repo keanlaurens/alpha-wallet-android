@@ -3,6 +3,7 @@ package com.alphawallet.app.ui;
 import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
@@ -11,6 +12,7 @@ import androidx.annotation.Nullable;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.alphawallet.app.R;
+import com.alphawallet.app.analytics.Analytics;
 import com.alphawallet.app.entity.Wallet;
 import com.alphawallet.app.entity.coinbasepay.DestinationWallet;
 import com.alphawallet.app.viewmodel.CoinbasePayViewModel;
@@ -41,6 +43,8 @@ public class CoinbasePayActivity extends BaseActivity
 
         initWebView();
 
+        viewModel.track(Analytics.Navigation.COINBASE_PAY);
+
         viewModel.prepare();
     }
 
@@ -51,7 +55,7 @@ public class CoinbasePayActivity extends BaseActivity
         webView.setWebViewClient(new WebViewClient());
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(true);
-        webView.getSettings().setAppCacheEnabled(false);
+        webView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
         webView.clearCache(true);
         webView.clearHistory();
     }

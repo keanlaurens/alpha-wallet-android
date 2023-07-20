@@ -3,18 +3,20 @@ package com.alphawallet.app;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.Espresso.pressBack;
 import static androidx.test.espresso.action.ViewActions.replaceText;
+import static androidx.test.espresso.action.ViewActions.swipeUp;
 import static androidx.test.espresso.matcher.ViewMatchers.isRoot;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withSubstring;
 import static com.alphawallet.app.assertions.Should.shouldSee;
+import static com.alphawallet.app.steps.Steps.GANACHE_URL;
 import static com.alphawallet.app.steps.Steps.addNewNetwork;
 import static com.alphawallet.app.steps.Steps.getWalletAddress;
 import static com.alphawallet.app.steps.Steps.importPKWalletFromFrontPage;
 import static com.alphawallet.app.steps.Steps.selectTestNet;
 import static com.alphawallet.app.steps.Steps.switchToWallet;
-import static com.alphawallet.app.util.EthUtils.GANACHE_URL;
 import static com.alphawallet.app.util.Helper.click;
 import static com.alphawallet.app.util.Helper.waitUntil;
+import static com.alphawallet.app.util.Helper.waitUntilThenBack;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.AllOf.allOf;
@@ -24,9 +26,9 @@ import android.os.Build;
 
 import androidx.test.espresso.action.ViewActions;
 
-import com.alphawallet.app.resources.Contracts;
 import com.alphawallet.app.util.EthUtils;
 import com.alphawallet.app.util.Helper;
+import com.alphawallet.app.resources.Contracts;
 
 import org.junit.Test;
 import org.web3j.crypto.Credentials;
@@ -42,16 +44,21 @@ import java.util.Map;
  */
 public class TokenScriptCertificateTest extends BaseE2ETest
 {
-    private final String doorContractAddress;
+    private String doorContractAddress;
     private final String contractOwnerPk = "0x69c22d654be7fe75e31fbe26cb56c93ec91144fab67cb71529c8081971635069";
     private final Web3j web3j;
 
+    private final boolean useMumbai = true; //for local testing
+
     private static final Map<String, String[]> WALLETS_ON_GANACHE = new HashMap<String, String[]>()
-    {{
-        put("24", new String[]{"0x644022aef70ad515ee186345fd74b005d759f41be8157c2835de3597d943146d", "0xE494323823fdF1A1Ab6ca79d2538C7182690D52a"});
-        put("30", new String[]{"0x5c8843768e0e1916255def80ae7f6197e1f6a2dbcba720038748fc7634e5cffd", "0x162f5e0b63646AAA33a85eA13346F15C5289f901"});
-        put("32", new String[]{"0x992b442eaa34de3c6ba0b61c75b2e4e0241d865443e313c4fa6ab8ba488a6957", "0xd7Ba01f596a7cc926b96b3B0a037c47A22904c06"});
-    }};
+    {
+        {
+            put("24", new String[]{"0x644022aef70ad515ee186345fd74b005d759f41be8157c2835de3597d943146d", "0xE494323823fdF1A1Ab6ca79d2538C7182690D52a"});
+            put("29", new String[]{"0x5c8843768e0e1916255def80ae7f6197e1f6a2dbcba720038748fc7634e5cffd", "0x162f5e0b63646AAA33a85eA13346F15C5289f901"});
+            put("30", new String[]{"0x5c8843768e0e1916255def80ae7f6197e1f6a2dbcba720038748fc7634e5cffd", "0x162f5e0b63646AAA33a85eA13346F15C5289f901"});
+            put("32", new String[]{"0x992b442eaa34de3c6ba0b61c75b2e4e0241d865443e313c4fa6ab8ba488a6957", "0xd7Ba01f596a7cc926b96b3B0a037c47A22904c06"});
+        }
+    };
 
     public TokenScriptCertificateTest()
     {
@@ -73,14 +80,22 @@ public class TokenScriptCertificateTest extends BaseE2ETest
         //create credentials for contract deployment (fixed so we can link to a tokenscript)
         Credentials deployCredentials = Credentials.create(contractOwnerPk);
 
-        //Transfer 1 eth into deployment wallet
-        EthUtils.transferFunds(web3j, credentials, deployCredentials.getAddress(), BigDecimal.ONE);
+        if (!useMumbai)
+        {
+            //Transfer 1 eth into deployment wallet
+            EthUtils.transferFunds(web3j, credentials, deployCredentials.getAddress(), BigDecimal.ONE);
 
-        //Deploy door contract
-        EthUtils.deployContract(web3j, deployCredentials, Contracts.doorContractCode);
+            //Deploy door contract
+            EthUtils.deployContract(web3j, deployCredentials, Contracts.doorContractCode);
 
-        //Always use zero nonce for determining the contract address
-        doorContractAddress = EthUtils.calculateContractAddress(deployCredentials.getAddress(), 0L);
+            //Always use zero nonce for determining the contract address
+            doorContractAddress = EthUtils.calculateContractAddress(deployCredentials.getAddress(), 0L);
+        }
+        else
+        {
+            //If using Mumbai for this test:
+            doorContractAddress = "0xA0343dfd68FcD7F18153b8AB87936c5A9C1Da20e";
+        }
     }
 
     @Test
@@ -100,13 +115,17 @@ public class TokenScriptCertificateTest extends BaseE2ETest
 
         assertThat(getWalletAddress(), equalTo(ownerAddress));
 
-        addNewNetwork("Ganache");
-        selectTestNet("Ganache");
+        if (!useMumbai)
+        {
+            addNewNetwork("Ganache", "GETH", GANACHE_URL);
+        }
+
+        selectTestNet(useMumbai ? "Mumbai" : "Ganache");
 
         //Ensure we're on the wallet page
         switchToWallet(ownerAddress);
 
-        Helper.wait(1);
+        Helper.wait(3);
 
         //add the token manually since test doesn't seem to work normally
         click(withId(R.id.action_my_wallet));
@@ -117,31 +136,39 @@ public class TokenScriptCertificateTest extends BaseE2ETest
 
         onView(allOf(withId(R.id.edit_text))).perform(replaceText(doorContractAddress));
 
-        onView(isRoot()).perform(waitUntil(withId(R.id.select_token), 30));
+        onView(isRoot()).perform(waitUntil(withId(R.id.select_token), 300));
 
         click(withId(R.id.select_token));
 
         click(withSubstring("Save"));
 
-        pressBack();
+        Helper.wait(1);
+
+        //only press back if we're on the add / hide screen
+        waitUntilThenBack(withSubstring("Add / Hide Tokens"), 10);
 
         //Swipe up
         onView(withId(R.id.coordinator)).perform(ViewActions.swipeUp());
 
-        Helper.wait(1);
+        Helper.wait(2);
+
+        onView(withId(R.id.coordinator)).perform(swipeUp());
+
+        Helper.wait(2);
+
+        onView(withId(R.id.coordinator)).perform(ViewActions.swipeUp());
 
         //Select token
-        click(withSubstring("OFFIC"));
+        click(withSubstring("OFFIC"), 120);
 
         //Wait for cert to resolve
-        //Helper.wait(8);
-        onView(isRoot()).perform(waitUntil(withId(R.id.image_lock), 30));
-
         //click certificate
-        click(withId(R.id.image_lock));
+        click(withId(R.id.image_lock), 180);
 
         shouldSee("Smart Token Labs");
         shouldSee("ECDSA");
-        shouldSee("Contract Owner"); // Note this may fail once we pull owner() from contract, test will need to be changed to contract owner, which for this test is: 0xA20efc4B9537d27acfD052003e311f762620642D
+        shouldSee("Contract Owner");    // Note this may fail once we pull owner() from contract,
+                                            // test will need to be changed to contract owner,
+                                            // which for this test is: 0xA20efc4B9537d27acfD052003e311f762620642D
     }
 }

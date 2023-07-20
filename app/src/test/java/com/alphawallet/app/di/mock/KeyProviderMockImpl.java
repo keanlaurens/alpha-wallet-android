@@ -61,6 +61,12 @@ public class KeyProviderMockImpl implements KeyProvider
     }
 
     @Override
+    public String getTertiaryInfuraKey()
+    {
+        return FAKE_KEY_FOR_TESTING;
+    }
+
+    @Override
     public String getRampKey()
     {
         return FAKE_KEY_FOR_TESTING;
@@ -80,6 +86,42 @@ public class KeyProviderMockImpl implements KeyProvider
 
     @Override
     public String getCoinbasePayAppId()
+    {
+        return FAKE_KEY_FOR_TESTING;
+    }
+
+    @Override
+    public String getWalletConnectProjectId()
+    {
+        return FAKE_KEY_FOR_TESTING;
+    }
+
+    @Override
+    public String getInfuraSecret()
+    {
+        return FAKE_KEY_FOR_TESTING;
+    }
+
+    @Override
+    public String getUnstoppableDomainsKey()
+    {
+        return FAKE_KEY_FOR_TESTING;
+    }
+
+    @Override
+    public String getOkLinkKey()
+    {
+        return FAKE_KEY_FOR_TESTING;
+    }
+
+    @Override
+    public String getBlockPiBaobabKey()
+    {
+        return FAKE_KEY_FOR_TESTING;
+    }
+
+    @Override
+    public String getBlockPiCypressKey()
     {
         return FAKE_KEY_FOR_TESTING;
     }

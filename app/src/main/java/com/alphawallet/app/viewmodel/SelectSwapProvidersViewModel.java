@@ -1,11 +1,10 @@
 package com.alphawallet.app.viewmodel;
 
-import android.content.Context;
-
 import com.alphawallet.app.entity.lifi.SwapProvider;
 import com.alphawallet.app.repository.PreferenceRepositoryType;
 import com.alphawallet.app.repository.SwapRepositoryType;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -13,6 +12,7 @@ import java.util.Set;
 import javax.inject.Inject;
 
 import dagger.hilt.android.lifecycle.HiltViewModel;
+import timber.log.Timber;
 
 @HiltViewModel
 public class SelectSwapProvidersViewModel extends BaseViewModel
@@ -29,7 +29,7 @@ public class SelectSwapProvidersViewModel extends BaseViewModel
         this.swapRepository = swapRepository;
     }
 
-    public Set<String> getPreferredExchanges(Context context)
+    public Set<String> getPreferredExchanges()
     {
         Set<String> exchanges = preferenceRepository.getSelectedSwapProviders();
         if (exchanges.isEmpty())
@@ -53,7 +53,7 @@ public class SelectSwapProvidersViewModel extends BaseViewModel
 
         if (swapProviders != null)
         {
-            Set<String> preferredProviders =  preferenceRepository.getSelectedSwapProviders();
+            Set<String> preferredProviders = preferenceRepository.getSelectedSwapProviders();
             for (SwapProvider provider : swapProviders)
             {
                 if (preferredProviders.contains(provider.key))
@@ -61,6 +61,11 @@ public class SelectSwapProvidersViewModel extends BaseViewModel
                     provider.isChecked = true;
                 }
             }
+        }
+        else
+        {
+            Timber.w("No Swap Providers found.");
+            swapProviders = new ArrayList<>();
         }
 
         return swapProviders;

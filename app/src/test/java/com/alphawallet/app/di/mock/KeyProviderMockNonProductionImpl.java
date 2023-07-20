@@ -60,6 +60,12 @@ public class KeyProviderMockNonProductionImpl implements KeyProvider
     }
 
     @Override
+    public String getTertiaryInfuraKey()
+    {
+        return null;
+    }
+
+    @Override
     public String getRampKey()
     {
         return null;
@@ -79,6 +85,42 @@ public class KeyProviderMockNonProductionImpl implements KeyProvider
 
     @Override
     public String getCoinbasePayAppId()
+    {
+        return null;
+    }
+
+    @Override
+    public String getWalletConnectProjectId()
+    {
+        return null;
+    }
+
+    @Override
+    public String getInfuraSecret()
+    {
+        return null;
+    }
+
+    @Override
+    public String getUnstoppableDomainsKey()
+    {
+        return null;
+    }
+
+    @Override
+    public String getOkLinkKey()
+    {
+        return null;
+    }
+
+    @Override
+    public String getBlockPiBaobabKey()
+    {
+        return null;
+    }
+
+    @Override
+    public String getBlockPiCypressKey()
     {
         return null;
     }

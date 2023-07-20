@@ -3,13 +3,18 @@ package com.alphawallet.app.entity.nftassets;
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.text.TextUtils;
+import android.util.Pair;
 
 import androidx.annotation.Nullable;
 
 import com.alphawallet.app.entity.opensea.OpenSeaAsset;
+import com.alphawallet.app.entity.tokens.Attestation;
 import com.alphawallet.app.entity.tokens.ERC1155Token;
+import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.repository.entity.RealmNFTAsset;
 import com.alphawallet.app.util.Utils;
+import com.alphawallet.token.entity.AttestationDefinition;
+import com.alphawallet.token.tools.TokenDefinition;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -48,6 +53,7 @@ public class NFTAsset implements Parcelable
     };
     private static final String LOADING_TOKEN = "*Loading*";
     private static final String ID = "id";
+    private static final String ATTN_ID = "attn_id";
     private static final String NAME = "name";
     private static final String IMAGE = "image";
     private static final String IMAGE_URL = "image_url";
@@ -55,8 +61,9 @@ public class NFTAsset implements Parcelable
     private static final String DESCRIPTION = "description";
     private static final String IMAGE_ORIGINAL_URL = "image_original_url";
     private static final String IMAGE_ANIMATION = "animation_url";
-    private static final String[] IMAGE_DESIGNATORS = {IMAGE, IMAGE_URL, IMAGE_ANIMATION, IMAGE_ORIGINAL_URL, IMAGE_PREVIEW};
-    private static final String[] SVG_OVERRIDE = {IMAGE_ORIGINAL_URL, IMAGE_ANIMATION, IMAGE, IMAGE_URL};
+    private static final String ATTESTATION_ASSET = "__Attestation";
+    private static final String[] IMAGE_DESIGNATORS = {IMAGE, IMAGE_URL, IMAGE_ORIGINAL_URL, IMAGE_PREVIEW, IMAGE_ANIMATION};
+    private static final String[] SVG_OVERRIDE = {IMAGE_ORIGINAL_URL, IMAGE, IMAGE_URL, IMAGE_ANIMATION};
     private static final String[] IMAGE_THUMBNAIL_DESIGNATORS = {IMAGE_PREVIEW, IMAGE, IMAGE_URL, IMAGE_ORIGINAL_URL, IMAGE_ANIMATION};
     private static final String BACKGROUND_COLOUR = "background_color";
     private static final String EXTERNAL_LINK = "external_link";
@@ -100,6 +107,16 @@ public class NFTAsset implements Parcelable
         attributeMap.clear();
         balance = BigDecimal.ONE;
         assetMap.put(NAME, "ID #" + tokenId.toString());
+        assetMap.put(LOADING_TOKEN, ".");
+    }
+
+    public NFTAsset(Attestation att)
+    {
+        assetMap.put(ATTESTATION_ASSET, att.getName());
+        attributeMap.put(NAME, "Attestation");
+        attributeMap.put(ID, att.getAttestationUID());
+
+        balance = BigDecimal.ONE;
     }
 
     public NFTAsset(NFTAsset asset)
@@ -382,6 +399,11 @@ public class NFTAsset implements Parcelable
         return (assetMap.size() == 0 || assetMap.containsKey(LOADING_TOKEN));
     }
 
+    public boolean hasImageAsset()
+    {
+        return !TextUtils.isEmpty(getThumbnail());
+    }
+
     public boolean requiresReplacement()
     {
         return (needsLoading() || !assetMap.containsKey(NAME) || TextUtils.isEmpty(getImage()));
@@ -516,7 +538,11 @@ public class NFTAsset implements Parcelable
 
     public Category getAssetCategory(BigInteger tokenId)
     {
-        if (tokenIdList != null && isCollection())
+        if (assetMap.containsKey(ATTESTATION_ASSET))
+        {
+            return Category.ATTESTATION;
+        }
+        else if (tokenIdList != null && isCollection())
         {
             return Category.COLLECTION;
         }
@@ -547,9 +573,61 @@ public class NFTAsset implements Parcelable
         return this.openSeaAsset;
     }
 
+    public boolean isAttestation()
+    {
+        return assetMap.containsKey(ATTESTATION_ASSET);
+    }
+
+    public String getTokenIdStr()
+    {
+        return attributeMap.getOrDefault(ID, "1");
+    }
+
+    public String getAttestationID()
+    {
+        return attributeMap.getOrDefault(ID, "1");
+    }
+
+    public void addAttribute(String name, String value)
+    {
+        attributeMap.put(name, value);
+    }
+
+    public boolean setupScriptElements(TokenDefinition td)
+    {
+        boolean hasMetaData = false;
+        AttestationDefinition internalAtt = td != null ? td.getAttestation() : null;
+        if (internalAtt != null && internalAtt.metadata.size() > 0)
+        {
+            internalAtt.metadata.keySet().forEach(key -> assetMap.put(key, internalAtt.metadata.get(key)));
+            hasMetaData = true;
+        }
+
+        return hasMetaData;
+    }
+
+    public void setupScriptAttributes(TokenDefinition td, Token token)
+    {
+        AttestationDefinition internalAtt = td.getAttestation();
+        if (internalAtt != null && internalAtt.attributes != null && internalAtt.attributes.size() > 0)
+        {
+            for (Map.Entry<String, String> attr : internalAtt.attributes.entrySet())
+            {
+                String typeName = attr.getKey();
+                String attrTitle = attr.getValue();
+                String attrValue = token.getAttrValue(typeName);
+
+                if (!TextUtils.isEmpty(attrValue))
+                {
+                    attributeMap.put(attrTitle, attrValue);
+                }
+            }
+        }
+    }
+
     public enum Category
     {
-        NFT("NFT"), FT("Fungible Token"), COLLECTION("Collection"), SEMI_FT("Semi-Fungible");
+        NFT("NFT"), FT("Fungible Token"), COLLECTION("Collection"), SEMI_FT("Semi-Fungible"), ATTESTATION("Attestation");
 
         private final String category;
 

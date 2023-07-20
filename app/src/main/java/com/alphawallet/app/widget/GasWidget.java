@@ -19,10 +19,12 @@ import com.alphawallet.app.R;
 import com.alphawallet.app.entity.GasPriceSpread;
 import com.alphawallet.app.entity.StandardFunctionInterface;
 import com.alphawallet.app.entity.TXSpeed;
+import com.alphawallet.app.entity.analytics.ActionSheetMode;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.repository.TokensRealmSource;
 import com.alphawallet.app.repository.entity.RealmGasSpread;
 import com.alphawallet.app.repository.entity.RealmTokenTicker;
+import com.alphawallet.app.walletconnect.AWWalletConnectClient;
 import com.alphawallet.app.service.GasService;
 import com.alphawallet.app.service.TickerService;
 import com.alphawallet.app.service.TokensService;
@@ -38,6 +40,7 @@ import java.math.BigInteger;
 
 import io.realm.Realm;
 import io.realm.RealmQuery;
+import timber.log.Timber;
 
 /**
  * Created by JB on 19/11/2020.
@@ -114,7 +117,12 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
         {
             findViewById(R.id.edit_text).setVisibility(View.VISIBLE);
             setOnClickListener(v -> {
-                Token baseEth = tokensService.getToken(token.tokenInfo.chainId, token.getWallet());
+                String wallet = token.getWallet();
+                Token baseEth = tokensService.getToken(token.tokenInfo.chainId, wallet);
+                if (baseEth == null)
+                {
+                    baseEth = tokensService.getToken(wallet, token.tokenInfo.chainId, token.getAddress());
+                }
                 Intent intent = new Intent(getContext(), GasSettingsActivity.class);
                 intent.putExtra(C.EXTRA_SINGLE_ITEM, currentGasSpeedIndex.ordinal());
                 intent.putExtra(C.EXTRA_CHAIN_ID, token.tokenInfo.chainId);
@@ -318,6 +326,11 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
     {
         GasSpeed2 gs = gasSpread.getSelectedGasFee(currentGasSpeedIndex);
 
+        if (gs == null || gs.gasPrice == null || gs.gasPrice.maxFeePerGas == null)
+        {
+            return;
+        }
+
         Token baseCurrency = tokensService.getTokenOrBase(token.tokenInfo.chainId, token.getWallet());
         BigInteger networkFee = gs.gasPrice.maxFeePerGas.multiply(getUseGasLimit());
         String gasAmountInBase = BalanceUtils.getSlidingBaseValue(new BigDecimal(networkFee), baseCurrency.tokenInfo.decimals, GasSettingsActivity.GAS_PRECISION);
@@ -349,7 +362,7 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
         }
         catch (Exception e)
         {
-            //
+            Timber.w(e);
         }
         timeEstimate.setText(displayStr);
         speedText.setText(gs.speed);

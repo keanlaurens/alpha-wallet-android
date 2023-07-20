@@ -38,6 +38,9 @@ app/release
 app/debug
 app/debug/output.json
 
+# Library
+hardware_stub/build/
+
 # Fastlane
 fastlane/report.xml
 
@@ -71,5 +74,8 @@ gen-external-apklibs
 
 fastlane/.google-play-key.json
 DCIM/
+.project
 vendor/
 .project
+output/
+node_modules/

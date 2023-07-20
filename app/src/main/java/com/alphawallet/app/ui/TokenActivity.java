@@ -7,6 +7,7 @@ import static com.alphawallet.app.ui.widget.holder.TransactionHolder.TRANSACTION
 import static com.alphawallet.app.widget.AWalletAlertDialog.ERROR;
 import static com.alphawallet.ethereum.EthereumNetworkBase.MAINNET_ID;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -32,9 +33,10 @@ import com.alphawallet.app.entity.ContractType;
 import com.alphawallet.app.entity.SignAuthenticationCallback;
 import com.alphawallet.app.entity.StandardFunctionInterface;
 import com.alphawallet.app.entity.Transaction;
-import com.alphawallet.app.entity.TransactionData;
+import com.alphawallet.app.entity.TransactionReturn;
 import com.alphawallet.app.entity.TransactionType;
 import com.alphawallet.app.entity.Wallet;
+import com.alphawallet.app.entity.WalletType;
 import com.alphawallet.app.entity.nftassets.NFTAsset;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.entity.tokenscript.TokenScriptRenderCallback;
@@ -43,6 +45,8 @@ import com.alphawallet.app.repository.EventResult;
 import com.alphawallet.app.repository.TransactionsRealmCache;
 import com.alphawallet.app.repository.entity.RealmAuxData;
 import com.alphawallet.app.repository.entity.RealmTransaction;
+import com.alphawallet.app.router.TokenDetailRouter;
+import com.alphawallet.app.service.AssetDefinitionService;
 import com.alphawallet.app.ui.widget.entity.ActionSheetCallback;
 import com.alphawallet.app.ui.widget.entity.TokenTransferData;
 import com.alphawallet.app.util.BalanceUtils;
@@ -56,12 +60,13 @@ import com.alphawallet.app.web3.entity.PageReadyCallback;
 import com.alphawallet.app.web3.entity.Web3Transaction;
 import com.alphawallet.app.widget.AWalletAlertDialog;
 import com.alphawallet.app.widget.ActionSheetDialog;
-import com.alphawallet.app.widget.ActionSheetMode;
+import com.alphawallet.app.entity.analytics.ActionSheetMode;
 import com.alphawallet.app.widget.AmountDisplayWidget;
 import com.alphawallet.app.widget.ChainName;
 import com.alphawallet.app.widget.EventDetailWidget;
 import com.alphawallet.app.widget.FunctionButtonBar;
 import com.alphawallet.app.widget.TokenIcon;
+import com.alphawallet.hardware.SignatureFromKey;
 import com.alphawallet.token.entity.TSActivityView;
 import com.alphawallet.token.entity.TSTokenView;
 import com.alphawallet.token.entity.TokenScriptResult;
@@ -122,6 +127,7 @@ public class TokenActivity extends BaseActivity implements PageReadyCallback, St
 
     @Nullable
     private Disposable fetchMetadata = null;
+    private Wallet wallet;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState)
@@ -233,22 +239,22 @@ public class TokenActivity extends BaseActivity implements PageReadyCallback, St
         if (eventDetail != null) eventDetail.onDestroy();
     }
 
-    private void txWritten(TransactionData transactionData)
+    private void txWritten(TransactionReturn transactionReturn)
     {
-        confirmationDialog.transactionWritten(transactionData.txHash);
-        transactionHash = transactionData.txHash;
+        confirmationDialog.transactionWritten(transactionReturn.hash);
+        transactionHash = transactionReturn.hash;
         //reset display using new transaction hash
         viewModel.getCurrentWallet();
     }
 
     //Transaction failed to be sent
-    private void txError(Throwable throwable)
+    private void txError(TransactionReturn txError)
     {
         if (dialog != null && dialog.isShowing()) dialog.dismiss();
         dialog = new AWalletAlertDialog(this);
         dialog.setIcon(ERROR);
         dialog.setTitle(R.string.error_transaction_failed);
-        dialog.setMessage(throwable.getMessage());
+        dialog.setMessage(txError.throwable.getMessage());
         dialog.setButtonText(R.string.button_ok);
         dialog.setButtonListener(v -> {
             dialog.dismiss();
@@ -259,6 +265,7 @@ public class TokenActivity extends BaseActivity implements PageReadyCallback, St
 
     private void onWallet(Wallet wallet)
     {
+        this.wallet = wallet;
         if (!TextUtils.isEmpty(eventKey))
         {
             handleEvent(wallet);
@@ -386,7 +393,7 @@ public class TokenActivity extends BaseActivity implements PageReadyCallback, St
 
             if (transaction.transactionInput == null || transaction.transactionInput.type == TransactionType.CONTRACT_CALL)
             {
-                eventAction.setText(transferData.getTitle(transaction));
+                eventAction.setText(transferData.getTitle());
             }
         }
     }
@@ -552,7 +559,7 @@ public class TokenActivity extends BaseActivity implements PageReadyCallback, St
 
         tokenView.setChainId(token.tokenInfo.chainId);
         tokenView.setWalletAddress(new Address(token.getWallet()));
-        tokenView.setRpcUrl(token.tokenInfo.chainId);
+        tokenView.setRpcUrl(viewModel.getBrowserRPC(token.tokenInfo.chainId));
         tokenView.setOnReadyCallback(this);
         tokenView.setOnSetValuesListener(this);
         tokenView.setKeyboardListenerCallback(this);
@@ -650,7 +657,7 @@ public class TokenActivity extends BaseActivity implements PageReadyCallback, St
     {
         //is the attr incomplete?
        Timber.d("ATTR/FA: " + attribute.id + " (" + attribute.name + ")" + " : " + attribute.text);
-        TokenScriptResult.addPair(attrs, attribute.id, attribute.text);
+       TokenScriptResult.addPair(attrs, attribute.id, attribute.text);
     }
 
     private void displayFunction(String tokenAttrs)
@@ -799,9 +806,45 @@ public class TokenActivity extends BaseActivity implements PageReadyCallback, St
             }
             else
             {
-                //same as if you clicked on it in the wallet view
-                token.clickReact(viewModel, this);
+                showTokenDetail(this, token);
             }
+        }
+    }
+
+    public void showTokenDetail(Activity activity, Token token)
+    {
+        TokenDetailRouter tokenDetailRouter = new TokenDetailRouter();
+        AssetDefinitionService assetDefinitionService = viewModel.getAssetDefinitionService();
+        Wallet defaultWallet = viewModel.getWallet();
+        boolean hasDefinition = assetDefinitionService.hasDefinition(token);
+        switch (token.getInterfaceSpec())
+        {
+            case ETHEREUM:
+            case ERC20:
+            case CURRENCY:
+            case DYNAMIC_CONTRACT:
+            case LEGACY_DYNAMIC_CONTRACT:
+            case ETHEREUM_INVISIBLE:
+            case MAYBE_ERC20:
+                tokenDetailRouter.open(activity, token.getAddress(), token.tokenInfo.symbol, token.tokenInfo.decimals,
+                    !token.isEthereum(), defaultWallet, token, hasDefinition);
+                break;
+            case ERC1155:
+                tokenDetailRouter.open(activity, token, defaultWallet, hasDefinition);
+                break;
+            case ERC721:
+            case ERC721_LEGACY:
+            case ERC721_TICKET:
+            case ERC721_UNDETERMINED:
+            case ERC721_ENUMERABLE:
+                tokenDetailRouter.open(activity, token, defaultWallet, false);
+                break;
+            case ERC875_LEGACY:
+            case ERC875:
+                tokenDetailRouter.openLegacyToken(activity, token, defaultWallet);
+                break;
+            default:
+                break;
         }
     }
 
@@ -828,7 +871,13 @@ public class TokenActivity extends BaseActivity implements PageReadyCallback, St
     @Override
     public void sendTransaction(Web3Transaction finalTx)
     {
-        viewModel.sendTransaction(finalTx, token.tokenInfo.chainId, transactionHash); //return point is txWritten
+        viewModel.requestSignature(finalTx, viewModel.getWallet(), token.tokenInfo.chainId);
+    }
+
+    @Override
+    public void completeSendTransaction(Web3Transaction tx, SignatureFromKey signature)
+    {
+        viewModel.sendTransaction(viewModel.getWallet(), token.tokenInfo.chainId, tx, signature);
     }
 
     @Override
@@ -853,5 +902,11 @@ public class TokenActivity extends BaseActivity implements PageReadyCallback, St
     public ActivityResultLauncher<Intent> gasSelectLauncher()
     {
         return getGasSettings;
+    }
+
+    @Override
+    public WalletType getWalletType()
+    {
+        return viewModel.getWallet().type;
     }
 }

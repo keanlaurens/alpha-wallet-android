@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.alphawallet.app.R;
+import com.alphawallet.app.analytics.Analytics;
 import com.alphawallet.app.entity.ActivityMeta;
 import com.alphawallet.app.entity.ContractLocator;
 import com.alphawallet.app.entity.TransactionMeta;
@@ -158,7 +159,7 @@ public class ActivityFragment extends BaseFragment implements View.OnClickListen
         //summon realm items
         //get matching entries for this transaction
         RealmResults<RealmTransfer> transfers = realm.where(RealmTransfer.class)
-                .equalTo("hash", tm.hash)
+                .equalTo("hash", RealmTransfer.databaseKey(tm.chainId, tm.hash))
                 .findAll();
 
         if (transfers != null && transfers.size() > 0)
@@ -229,6 +230,10 @@ public class ActivityFragment extends BaseFragment implements View.OnClickListen
             adapter.clear();
             viewModel.prepare();
         }
+        else
+        {
+            requireActivity().recreate();
+        }
     }
 
     @Override
@@ -257,6 +262,7 @@ public class ActivityFragment extends BaseFragment implements View.OnClickListen
         }
         else
         {
+            viewModel.track(Analytics.Navigation.ACTIVITY);
             viewModel.prepare();
         }
 

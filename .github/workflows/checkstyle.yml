@@ -1,26 +1,23 @@
-name: Check Style
-on:
-  pull_request:
-jobs:
-  lint:
-    name: Run CheckStyle
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+name: Run CheckStyle
+on: pull_request, merge_group
 
-      - name: Set up JDK
-        uses: actions/setup-java@v3
+jobs:
+  checkstyle_job:
+    runs-on: ubuntu-latest
+    name: Checkstyle job
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Run check style
+        uses: nikitasavinov/checkstyle-action@master
         with:
-          distribution: zulu
-          java-version: 11
-          cache: gradle
-      - name: Run
-        run: ./gradlew --no-daemon checkStyleChanged
-      - name: Upload report
-        uses: actions/upload-artifact@v2
-        if: ${{ always() }} # IMPORTANT: Upload reports regardless of status
-        with:
-          name: checkstyle-reports
-          path: build/reports/checkstyle/
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          checkstyle_config: '.github/checkstyle-rules.xml'
+          reporter: 'github-pr-review'
+#          filter_mode: 'file' # https://github.com/nikitasavinov/checkstyle-action
+          fail_on_error: true
+          level: 'error'
+          tool_name: 'CheckStyle'

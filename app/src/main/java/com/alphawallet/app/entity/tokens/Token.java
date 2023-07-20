@@ -17,6 +17,7 @@ import com.alphawallet.app.entity.EventSync;
 import com.alphawallet.app.entity.TicketRangeElement;
 import com.alphawallet.app.entity.Transaction;
 import com.alphawallet.app.entity.TransactionInput;
+import com.alphawallet.app.entity.TransactionType;
 import com.alphawallet.app.entity.nftassets.NFTAsset;
 import com.alphawallet.app.entity.opensea.AssetContract;
 import com.alphawallet.app.entity.tokendata.TokenGroup;
@@ -31,11 +32,14 @@ import com.alphawallet.app.ui.widget.entity.TokenTransferData;
 import com.alphawallet.app.util.BalanceUtils;
 import com.alphawallet.app.util.Utils;
 import com.alphawallet.app.viewmodel.BaseViewModel;
+import com.alphawallet.token.entity.ContractAddress;
 import com.alphawallet.token.entity.TicketRange;
 import com.alphawallet.token.entity.TokenScriptResult;
+import com.alphawallet.token.tools.TokenDefinition;
 
 import org.web3j.abi.datatypes.Event;
 import org.web3j.abi.datatypes.Function;
+import org.web3j.abi.datatypes.Type;
 import org.web3j.protocol.core.DefaultBlockParameter;
 import org.web3j.protocol.core.methods.request.EthFilter;
 import org.web3j.protocol.core.methods.response.EthLog;
@@ -171,6 +175,11 @@ public class Token
         {
             realmToken.setBalance("0");
         }
+    }
+
+    public ContractAddress getContractAddress()
+    {
+        return new ContractAddress(tokenInfo.chainId, tokenInfo.address);
     }
 
     //Used for custom balance updates
@@ -383,7 +392,7 @@ public class Token
 
     public boolean isBad()
     {
-        return tokenInfo == null || (tokenInfo.symbol == null && tokenInfo.name == null);
+        return tokenInfo == null || tokenInfo.chainId == 0 || (tokenInfo.symbol == null && tokenInfo.name == null);
     }
 
     public void setTokenWallet(String address)
@@ -495,8 +504,30 @@ public class Token
             name = transaction.getOperationName(ctx, this, getWallet());
         }
 
-
         return name;
+    }
+
+    public TransactionType getTransactionType(Transaction transaction)
+    {
+        if (isEthereum() && !transaction.hasInput())
+        {
+            if (transaction.value.equals("0") && transaction.hasInput())
+            {
+                return TransactionType.CONTRACT_CALL;
+            }
+            else if (transaction.from.equalsIgnoreCase(tokenWallet))
+            {
+                return TransactionType.SEND;
+            }
+            else
+            {
+               return TransactionType.RECEIVED;
+            }
+        }
+        else
+        {
+            return transaction.getTransactionType(this, getWallet());
+        }
     }
 
     /**
@@ -582,6 +613,40 @@ public class Token
         }
     }
 
+    /**
+     * Returns transaction result value without the need for precision
+     *
+     */
+    public String getTransactionResultValue(Transaction transaction)
+    {
+        if (isEthereum() && !transaction.hasInput())
+        {
+            //basic eth transaction
+            return getTransactionValue(transaction) + " " + getSymbol();
+        }
+        else if (transaction.hasInput())
+        {
+            //smart contract call
+            return transaction.getOperationResult(this);
+        }
+        else
+        {
+            return "";
+        }
+    }
+
+    /**
+     * Returns non-prefixed transaction value without the need for precision
+     *
+     */
+    public String getTransactionValue(Transaction transaction)
+    {
+        if (transaction.hasError()) return "";
+        else if (transaction.value.equals("0") || transaction.value.equals("0x0")) return "0";
+        return BalanceUtils.getScaledValue(transaction.value, tokenInfo.decimals);
+    }
+
+
     public boolean shouldShowSymbol(Transaction transaction)
     {
         return ((isEthereum() && !transaction.hasInput()) || (transaction.shouldShowSymbol(this)));
@@ -594,16 +659,30 @@ public class Token
 
     public String getTokenName(AssetDefinitionService assetService, int count)
     {
+        String name = "";
         //see if this token is covered by any contract
-        if (assetService.hasDefinition(tokenInfo.chainId, tokenInfo.address))
+        if (assetService != null && assetService.hasDefinition(this))
         {
-            if (tokenInfo.name != null) return tokenInfo.name;
-            else return assetService.getAssetDefinition(tokenInfo.chainId, getAddress()).getTokenName(count);
+            TokenDefinition td = assetService.getAssetDefinition(this);
+            if (td != null)
+            {
+                name = td.getTokenName(count);
+            }
+            if (isNonFungible() && !TextUtils.isEmpty(name))
+            {
+                return name;
+            }
+            else if (!TextUtils.isEmpty(tokenInfo.name))
+            {
+                return tokenInfo.name;
+            }
+            else if (!TextUtils.isEmpty(name))
+            {
+                return name;
+            }
         }
-        else
-        {
-            return tokenInfo.name;
-        }
+
+        return tokenInfo.name;
     }
 
     public boolean hasRealValue()
@@ -709,11 +788,6 @@ public class Token
         int hash = 7;
         hash = 17 * hash + (this.tokenInfo.name != null ? this.tokenInfo.name.hashCode() : 0);
         return hash;
-    }
-
-    public boolean checkBalanceType()
-    {
-        return true;
     }
 
     public String getTransactionDetail(Context ctx, Transaction tx, TokensService tService)
@@ -922,11 +996,6 @@ public class Token
                 || (!TextUtils.isEmpty(tokenInfo.symbol) && tokenInfo.symbol.contains("?"));
     }
 
-    public List<BigInteger> getChangeList(Map<BigInteger, NFTAsset> assetMap)
-    {
-        return new ArrayList<>();
-    }
-
     public void setAssetContract(AssetContract contract) {  }
     public AssetContract getAssetContract() { return null; }
 
@@ -943,6 +1012,11 @@ public class Token
     public Map<BigInteger, NFTAsset> queryAssets(Map<BigInteger, NFTAsset> assetMap)
     {
         return assetMap;
+    }
+
+    public Map<BigInteger, NFTAsset> getAssetChange(Map<BigInteger, NFTAsset> oldAssetList)
+    {
+        return oldAssetList;
     }
 
     /**
@@ -1001,7 +1075,6 @@ public class Token
         return contractInteract.getScriptFileURI();
     }
 
-
     /**
      * Event filters for send and receive of the token, overriden by the token type
      */
@@ -1018,5 +1091,42 @@ public class Token
     public HashSet<BigInteger> processLogsAndStoreTransferEvents(EthLog receiveLogs, Event event, HashSet<String> txHashes, Realm realm)
     {
         return null;
+    }
+
+    public void addAssetElements(NFTAsset asset, Context ctx)
+    {
+
+    }
+
+    public String getTSKey()
+    {
+        if (isEthereum())
+        {
+            return "ethereum-" + tokenInfo.chainId;
+        }
+        else
+        {
+            return tokenInfo.address.toLowerCase() + "-" + tokenInfo.chainId;
+        }
+    }
+
+    public Type<?> getIntrinsicType(String name)
+    {
+        return null;
+    }
+
+    public String getAttrValue(String typeName)
+    {
+        return "";
+    }
+
+    public BigInteger getUUID()
+    {
+        return BigInteger.ONE;
+    }
+
+    public String getAttestationCollectionId()
+    {
+        return getTSKey();
     }
 }

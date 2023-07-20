@@ -90,6 +90,7 @@ public class NFTActivity extends BaseActivity implements StandardFunctionInterfa
         //check NFT events, expedite balance update
         syncListener();
         viewModel.checkEventsForToken(token);
+        viewModel.updateAttributes(token);
     }
 
     private void syncListener()
@@ -111,7 +112,7 @@ public class NFTActivity extends BaseActivity implements StandardFunctionInterfa
 
     private boolean hasTokenScriptOverride(Token t)
     {
-        return viewModel.getAssetDefinitionService().hasTokenView(t.tokenInfo.chainId, t.getAddress(), AssetDefinitionService.ASSET_SUMMARY_VIEW_NAME);
+        return viewModel.getAssetDefinitionService().hasTokenView(t, AssetDefinitionService.ASSET_SUMMARY_VIEW_NAME);
     }
 
     private void onSignature(XMLDsigDescriptor descriptor)
@@ -135,13 +136,13 @@ public class NFTActivity extends BaseActivity implements StandardFunctionInterfa
         viewModel.newScriptFound().observe(this, this::newScriptFound);
     }
 
-    private void newScriptFound(Boolean status)
+    private void newScriptFound(Boolean scriptUpdated)
     {
-        CertifiedToolbarView certificateToolbar = findViewById(R.id.certified_toolbar);
-        certificateToolbar.stopDownload();
         //determinate signature
-        if (token != null)
+        if (token != null && scriptUpdated)
         {
+            CertifiedToolbarView certificateToolbar = findViewById(R.id.certified_toolbar);
+            certificateToolbar.stopDownload();
             certificateToolbar.setVisibility(View.VISIBLE);
             viewModel.checkTokenScriptValidity(token);
         }

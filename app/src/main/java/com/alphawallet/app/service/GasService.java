@@ -7,7 +7,6 @@ import static com.alphawallet.app.C.GAS_LIMIT_MIN;
 import static com.alphawallet.app.entity.tokenscript.TokenscriptFunction.ZERO_ADDRESS;
 import static com.alphawallet.app.repository.TokenRepository.getWeb3jService;
 import static com.alphawallet.app.repository.TokensRealmSource.TICKER_DB;
-import static com.alphawallet.ethereum.EthereumNetworkBase.ARTIS_TAU1_ID;
 import static com.alphawallet.ethereum.EthereumNetworkBase.MAINNET_ID;
 
 import android.text.TextUtils;
@@ -17,6 +16,7 @@ import androidx.annotation.NonNull;
 import com.alphawallet.app.C;
 import com.alphawallet.app.entity.EIP1559FeeOracleResult;
 import com.alphawallet.app.entity.FeeHistory;
+import com.alphawallet.app.entity.GasEstimate;
 import com.alphawallet.app.entity.GasPriceSpread;
 import com.alphawallet.app.entity.NetworkInfo;
 import com.alphawallet.app.entity.SuggestEIP1559Kt;
@@ -26,6 +26,7 @@ import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.repository.EthereumNetworkBase;
 import com.alphawallet.app.repository.EthereumNetworkRepository;
 import com.alphawallet.app.repository.EthereumNetworkRepositoryType;
+import com.alphawallet.app.repository.HttpServiceHelper;
 import com.alphawallet.app.repository.KeyProvider;
 import com.alphawallet.app.repository.KeyProviderFactory;
 import com.alphawallet.app.repository.entity.Realm1559Gas;
@@ -222,29 +223,9 @@ public class GasService implements ContractGasProvider
 
     private Boolean updateGasPrice(EthGasPrice ethGasPrice, long chainId)
     {
-        currentGasPrice = fixGasPrice(ethGasPrice.getGasPrice(), chainId);
+        currentGasPrice = ethGasPrice.getGasPrice();
         updateRealm(new GasPriceSpread(currentGasPrice, networkRepository.hasLockedGas(chainId)), chainId);
         return true;
-    }
-
-    private BigInteger fixGasPrice(BigInteger gasPrice, long chainId)
-    {
-        if (gasPrice.compareTo(BigInteger.ZERO) > 0)
-        {
-            return gasPrice;
-        }
-        else
-        {
-            //gas price from node is zero
-            switch ((int)chainId)
-            {
-                default:
-                    return gasPrice;
-                case (int)ARTIS_TAU1_ID:
-                    //this node incorrectly returns gas price zero, use 1 Gwei
-                    return new BigInteger(C.DEFAULT_XDAI_GAS_PRICE);
-            }
-        }
     }
 
     private Single<Boolean> updateEtherscanGasPrices(String gasOracleAPI)
@@ -336,8 +317,23 @@ public class GasService implements ContractGasProvider
         return succeeded;
     }
 
-    public Single<BigInteger> calculateGasEstimate(byte[] transactionBytes, long chainId, String toAddress,
-                                                   BigInteger amount, Wallet wallet, final BigInteger defaultLimit)
+    public Single<GasEstimate> calculateGasEstimate(byte[] transactionBytes, long chainId, String toAddress,
+                                                    BigInteger amount, Wallet wallet, final BigInteger defaultLimit)
+    {
+        updateChainId(chainId);
+        if (currentGasPrice == null)
+        {
+            return useNodeEstimate()
+                    .flatMap(com -> calculateGasEstimateInternal(transactionBytes, chainId, toAddress, amount, wallet, defaultLimit));
+        }
+        else
+        {
+            return calculateGasEstimateInternal(transactionBytes, chainId, toAddress, amount, wallet, defaultLimit);
+        }
+    }
+
+    public Single<GasEstimate> calculateGasEstimateInternal(byte[] transactionBytes, long chainId, String toAddress,
+                                                     BigInteger amount, Wallet wallet, final BigInteger defaultLimit)
     {
         String txData = "";
         if (transactionBytes != null && transactionBytes.length > 0)
@@ -348,7 +344,6 @@ public class GasService implements ContractGasProvider
         updateChainId(chainId);
         String finalTxData = txData;
 
-        //do we have 1559 gas and can we use it?
         if ((toAddress.equals("") || toAddress.equals(ZERO_ADDRESS)) && txData.length() > 0) //Check gas for constructor
         {
             return networkRepository.getLastTransactionNonce(web3j, wallet.address)
@@ -364,30 +359,30 @@ public class GasService implements ContractGasProvider
         }
     }
 
-    private BigInteger convertToGasLimit(EthEstimateGas estimate, BigInteger defaultLimit)
+    private GasEstimate convertToGasLimit(EthEstimateGas estimate, BigInteger defaultLimit)
     {
         if (estimate.hasError())
         {
             if (estimate.getError().getCode() == -32000) //out of gas
             {
-                return defaultLimit;
+                return new GasEstimate(defaultLimit, estimate.getError().getMessage());
             }
             else
             {
-                return BigInteger.ZERO;
+                return new GasEstimate(BigInteger.ZERO, estimate.getError().getMessage());
             }
         }
         else if (estimate.getAmountUsed().compareTo(BigInteger.ZERO) > 0)
         {
-            return estimate.getAmountUsed();
+            return new GasEstimate(estimate.getAmountUsed());
         }
         else if (defaultLimit == null || defaultLimit.equals(BigInteger.ZERO))
         {
-            return new BigInteger(DEFAULT_GAS_LIMIT_FOR_NONFUNGIBLE_TOKENS); //cautious gas limit
+            return new GasEstimate(new BigInteger(DEFAULT_GAS_LIMIT_FOR_NONFUNGIBLE_TOKENS));
         }
         else
         {
-            return defaultLimit;
+            return new GasEstimate(defaultLimit);
         }
     }
 
@@ -471,11 +466,16 @@ public class GasService implements ContractGasProvider
         RequestBody requestBody = RequestBody.create(requestJSON, HttpService.JSON_MEDIA_TYPE);
         NetworkInfo info = networkRepository.getNetworkByChain(currentChainId);
 
+        final Request.Builder rqBuilder = new Request.Builder()
+                .url(info.rpcServerUrl)
+                .post(requestBody);
+
+        HttpServiceHelper.addRequiredCredentials(info.chainId, rqBuilder, KeyProviderFactory.get().getKlaytnKey(),
+                KeyProviderFactory.get().getInfuraSecret(), EthereumNetworkBase.usesProductionKey, EthereumNetworkBase.isInfura(info.rpcServerUrl));
+
         return Single.fromCallable(() -> {
-            Request request = new Request.Builder()
-                    .url(info.rpcServerUrl)
-                    .post(requestBody)
-                    .build();
+            Request request = rqBuilder.build();
+
             try (Response response = httpClient.newCall(request).execute())
             {
                 if (response.code() / 200 == 1)
