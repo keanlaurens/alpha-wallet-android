@@ -13,7 +13,6 @@ import com.alphawallet.app.ui.widget.entity.ENSHandler;
 import com.alphawallet.app.ui.widget.entity.StatusType;
 import com.alphawallet.app.util.Utils;
 import com.alphawallet.app.web3.entity.Web3Transaction;
-import com.alphawallet.token.tools.Numeric;
 import com.alphawallet.token.tools.ParseMagicLink;
 import com.google.gson.annotations.SerializedName;
 
@@ -21,6 +20,7 @@ import org.web3j.crypto.Hash;
 import org.web3j.rlp.RlpEncoder;
 import org.web3j.rlp.RlpList;
 import org.web3j.rlp.RlpString;
+import org.web3j.utils.Numeric;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -224,8 +224,8 @@ public class Transaction implements Parcelable
         this.gasPrice = ethTx.getGasPrice().toString();
         this.gasUsed = ethTx.getGas().toString();
         this.chainId = chainId;
-        this.maxFeePerGas = ethTx.getMaxFeePerGas();
-        this.maxPriorityFee = ethTx.getMaxPriorityFeePerGas();
+        this.maxFeePerGas = ethTx.getMaxFeePerGasRaw() != null ? ethTx.getMaxFeePerGas().toString() : "";
+        this.maxPriorityFee = ethTx.getMaxPriorityFeePerGasRaw() != null ? ethTx.getMaxPriorityFeePerGas().toString() : "";
         this.functionName = "";
     }
 

@@ -326,6 +326,9 @@
     <string name="signer_address">签署人地址</string>
     <string name="requester_url">请求链接</string>
     <string name="dialog_title_sign_message">签署消息</string>
+    <string name="dialog_title_sign_message_sheet">⚠ 签署消息 ⚠</string>
+    <string name="sign_message_could_be_a_scam">危险：签字前检查</string>
+    <string name="sign_message_could_be_a_scam2">您可能面临丢失代币的危险，尤其是如果此请求来自“空投”。 Sign Message 主要由诈骗者使用。 对该网站进行网络搜索并使用“诈骗”。</string>
     <string name="dialog_title_sign_personal_message">签署消息\'Personal\'</string>
     <string name="dialog_title_sign_typed_message">签署消息\'Typed\'</string>
     <string name="dialog_reject">拒绝</string>
@@ -373,7 +376,6 @@
     <string name="is_address">刚刚扫描了一个以太坊地址。您是否要尝试将此作为通证进行加载？</string>
     <string name="dialog_load_as_contract">加载通证</string>
     <string name="blockchain">%1$s区块链</string>
-    <string name="telegram">电报 (客户支持)</string>
     <string name="transfer_request">转账请求</string>
     <string name="token_transfer_request">通证转账请求: %1$s</string>
     <string name="generate_payment_request">生成付款请求</string>
@@ -676,7 +678,7 @@
     <string name="gas_price_widget">燃料价格: %1$s</string>
     <string name="gas_max">Max Fee</string>
     <string name="priority_fee">Priority Fee</string>
-    <string name="base_fee">Base Fee: %1$s</string>
+    <string name="base_fee">Base Fee</string>
     <string name="gas_message">Fees are based on current Ethereum blockchain network load. They are not up to AlphaWallet. AlphaWallet uses the %1$s live oracle and updates the gas prices every 15 seconds.</string>
     <string name="set_your_speed">自己设定</string>
     <string name="nonce_optional">Nonce (可选的)</string>
@@ -714,7 +716,7 @@
     <string name="disconnect">Disconnect</string>
     <string name="keep_connect">Keep Connected</string>
     <string name="beware_of_scammers">Beware of scammers!\nDon\'t share seed phrase.</string>
-    <string name="alphawallet_never_ask">AlphaWallet will NEVER ask about your seed phrase (especially on Telegram).</string>
+    <string name="alphawallet_never_ask">AlphaWallet 永远不会询问您的助记词（我们只回复私信，从不先私信）。</string>
     <string name="your_seed_phrase">Your seed phrase (do not share with anyone)</string>
     <string name="hide_seed_text">OK, Hide Seed Phrase</string>
     <string name="ens_not_match_wallet">ENS Name does not match wallet address</string>
@@ -869,7 +871,6 @@
     <string name="label_slippage">Slippage</string>
     <string name="action_open_settings">Open Settings</string>
     <string name="message_no_connections_found">No connections found for this chain.</string>
-    <string name="label_fees">Fees</string>
     <string name="label_current_price">Current Price</string>
     <string name="label_minimum_received">Minimum Received</string>
     <string name="label_balance">Balance: </string>
@@ -912,8 +913,8 @@
     <string name="key_diagnostic">Key Diagnostic</string>
     <string name="key_found">Key found</string>
     <string name="key_not_found">Unable to find Key</string>
-    <string name="seed_phrase_public_key">Seed Phrase detected public key: %1$s</string>
-    <string name="keystore_public_key">Decoded Keystore public key: %1$s</string>
+    <string name="seed_phrase_public_key">Seed Phrase detected public key</string>
+    <string name="keystore_public_key">Decoded Keystore public key</string>
     <string name="enclave_locked">Locked</string>
     <string name="key_type_in_database">Key type in Database</string>
     <string name="key_entry_in_secure_enclave">Key Entry in Secure Enclave</string>
@@ -952,7 +953,7 @@
     <string name="dialog_title_search_token">搜索令牌？</string>
     <string name="hardware_wallets">硬件钱包</string>
     <string name="use_hardware_card">使用硬件卡</string>
-    <string name="unsupported_network">不支持的网络（链 ID：%s）</string>
+    <string name="unsupported_network" formatted="false">不支持的网络（链 ID：%s）</string>
     <string name="error_eip712_unsupported_network">您被要求为不受支持的链签署消息。(ID: %s)</string>
     <string name="error_eip712_incompatible_network">您被要求为 %1s 链签署消息。 您目前在 %2s 链上。</string>
     <string name="error_eip712_wc2_disabled_network">您被要求为 %s 的消息签名。 请为您的 WalletConnect 会话启用此链。</string>
@@ -983,4 +984,21 @@
     <string name="minted">Minted</string>
     <string name="valid_from">有效起始日期</string>
     <string name="valid_until">有效期至日期</string>
+    <string name="attestation_imported">已导入证明</string>
+    <string name="attestation_import_failed">证明导入失败</string>
+    <string name="key_address">发行人地址</string>
+    <string name="no_connection">无连接</string>
+    <string name="imported_smart_pass">进口 SmartPass</string>
+    <string name="smartpass_imported">SmartPass 已导入。您的通票应升级。</string>
+    <string name="no_connection_to_smart_layer">没有连接到 SmartLayer 网络 - 稍后尝试再次导入您的 SmartPass。</string>
+    <string name="session_not_authorised">此会话无权在 %s 上签署邮件，但是您可以绕过此限制进行签名。 使用键入的消息不会有任何危险。</string>
+    <string name="override">覆盖</string>
+    <string name="developer_override">开发者覆盖</string>
+    <string name="override_warning_text">您可能会在不知情的情况下签署一项交易，这可能会清空您的资金。 您可能希望以开发人员的身份对字节码进行签名，如果您在高级设置中设置开发人员模式，则可以覆盖此警告。</string>
+    <string name="constructor">Constructor</string>
+    <string name="use_tokenscript_viewer">使用 TokenScript 查看器</string>
+    <string name="not_recommended_to_visit">此 URL 未列入白名单。仍可通过更改设置中的保护选项来访问，但不建议这样做。您可能会损失资金，尤其是如果这是对加密货币挖矿的投资。有很多受监管的加密货币投资网站。</string>
+    <string name="developer_override_warning">警告：您即将关闭标准保护。这可以防止您被骗。仅在测试 dapp 或 100\% 确定网站安全时才使用开发者模式。请记住：如果有人告诉您打开此设置，您几乎肯定会失去您的加密货币资金。</string>
+    <string name="warning">警告</string>
+    <string name="i_accept">我接受风险</string>
 </resources>

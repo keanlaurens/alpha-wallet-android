@@ -49,16 +49,12 @@ import dagger.hilt.android.AndroidEntryPoint;
 public class NFTActivity extends BaseActivity implements StandardFunctionInterface
 {
     private NFTViewModel viewModel;
-
     private Wallet wallet;
     private Token token;
-    private FunctionButtonBar functionBar;
     private boolean isGridView;
-
     private MenuItem sendMultipleTokensMenuItem;
     private MenuItem switchToGridViewMenuItem;
     private MenuItem switchToListViewMenuItem;
-
     private NFTAssetsFragment assetsFragment;
 
     private final ActivityResultLauncher<Intent> handleTransactionSuccess = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
@@ -84,7 +80,7 @@ public class NFTActivity extends BaseActivity implements StandardFunctionInterfa
         initViewModel();
         getIntentData();
         setTitle(token.tokenInfo.name);
-        isGridView = !hasTokenScriptOverride(token);
+        isGridView = !hasTokenScriptOverride(token) && token.isERC875();
         setupViewPager();
 
         //check NFT events, expedite balance update
@@ -244,11 +240,9 @@ public class NFTActivity extends BaseActivity implements StandardFunctionInterfa
                 switch (tab.getPosition())
                 {
                     case 0:
-                        // showFunctionBar(true);
                         showMenu();
                         break;
                     default:
-                        // showFunctionBar(false);
                         hideMenu();
                         break;
                 }
@@ -266,16 +260,6 @@ public class NFTActivity extends BaseActivity implements StandardFunctionInterfa
 
             }
         });
-    }
-
-    private void showFunctionBar(boolean show)
-    {
-        if (functionBar == null && !show) return;
-        if (BuildConfig.DEBUG || wallet.type != WalletType.WATCH)
-        {
-            if (functionBar == null) setupFunctionBar();
-            functionBar.setVisibility(show ? View.VISIBLE : View.GONE);
-        }
     }
 
     @Override
@@ -349,23 +333,20 @@ public class NFTActivity extends BaseActivity implements StandardFunctionInterfa
         viewModel.onDestroy();
     }
 
-    private void setupFunctionBar()
-    {
-        if (BuildConfig.DEBUG || wallet.type != WalletType.WATCH)
-        {
-            functionBar = findViewById(R.id.layoutButtons);
-            functionBar.setupFunctions(this, viewModel.getAssetDefinitionService(), token, null, null);
-            functionBar.revealButtons();
-            functionBar.setWalletType(wallet.type);
-            functionBar.setVisibility(View.GONE);
-        }
-    }
-
     private void hideMenu()
     {
-        sendMultipleTokensMenuItem.setVisible(false);
-        switchToGridViewMenuItem.setVisible(false);
-        switchToListViewMenuItem.setVisible(false);
+        if (sendMultipleTokensMenuItem != null)
+        {
+            sendMultipleTokensMenuItem.setVisible(false);
+        }
+        if (switchToGridViewMenuItem != null)
+        {
+            switchToGridViewMenuItem.setVisible(false);
+        }
+        if (switchToListViewMenuItem != null)
+        {
+            switchToListViewMenuItem.setVisible(false);
+        }
     }
 
     private void showMenu()

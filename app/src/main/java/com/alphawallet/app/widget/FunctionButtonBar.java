@@ -39,8 +39,8 @@ import com.alphawallet.app.entity.ContractType;
 import com.alphawallet.app.entity.ItemClick;
 import com.alphawallet.app.entity.OnRampContract;
 import com.alphawallet.app.entity.StandardFunctionInterface;
+import com.alphawallet.app.entity.UpdateType;
 import com.alphawallet.app.entity.WalletType;
-import com.alphawallet.app.entity.tokens.Attestation;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.repository.OnRampRepositoryType;
 import com.alphawallet.app.service.AssetDefinitionService;
@@ -165,7 +165,7 @@ public class FunctionButtonBar extends LinearLayout implements AdapterView.OnIte
         callStandardFunctions = functionInterface;
         adapter = adp;
         selection.clear();
-        if (tokenIds != null) selection.addAll(tokenIds);
+        addTokenSelection(tokenIds);
         resetButtonCount();
         this.token = token;
         functions = assetSvs.getTokenFunctionMap(token);
@@ -173,12 +173,29 @@ public class FunctionButtonBar extends LinearLayout implements AdapterView.OnIte
         getFunctionMap(assetSvs, token.getInterfaceSpec());
     }
 
+    public void setupFunctionsForJsViewer(StandardFunctionInterface functionInterface, int functionNameResource, Token token, List<BigInteger> tokenIds)
+    {
+        callStandardFunctions = functionInterface;
+        adapter = null;
+        functions = null;
+        addTokenSelection(tokenIds);
+        resetButtonCount();
+        //buttonCount = 2;
+        this.token = token;
+        addFunction(functionNameResource);
+
+        this.addStandardTokenFunctions(token);
+
+        //always show buttons
+        findViewById(R.id.layoutButtons).setVisibility(View.VISIBLE);
+    }
+
     public void setupAttestationFunctions(StandardFunctionInterface functionInterface, AssetDefinitionService assetSvs, Token token, NonFungibleAdapterInterface adp, List<BigInteger> tokenIds)
     {
         callStandardFunctions = functionInterface;
         adapter = adp;
         selection.clear();
-        selection.addAll(tokenIds);
+        addTokenSelection(tokenIds);
         resetButtonCount();
         this.token = token;
         functions = assetSvs.getAttestationFunctionMap(token);
@@ -234,6 +251,20 @@ public class FunctionButtonBar extends LinearLayout implements AdapterView.OnIte
     private void onMoreButtonClick()
     {
         bottomSheet.show();
+    }
+
+    private void addTokenSelection(List<BigInteger> tokenIds)
+    {
+        if (tokenIds != null)
+        {
+            for (BigInteger tokenId : tokenIds)
+            {
+                if (!selection.contains(tokenId))
+                {
+                    selection.add(tokenId);
+                }
+            }
+        }
     }
 
     private void handleAction(ItemClick action)
@@ -393,7 +424,7 @@ public class FunctionButtonBar extends LinearLayout implements AdapterView.OnIte
         if (maxSelect <= 1)
         {
             selection.clear();
-            selection.addAll(tokenIds);
+            addTokenSelection(tokenIds);
             if (adapter != null) adapter.setRadioButtons(true);
         }
     }
@@ -405,7 +436,7 @@ public class FunctionButtonBar extends LinearLayout implements AdapterView.OnIte
         if (adapter != null) adapter.setRadioButtons(true);
 
         selection.clear();
-        selection.addAll(tokenIds);
+        addTokenSelection(tokenIds);
         Vibrator vb = (Vibrator) context.getSystemService(Context.VIBRATOR_SERVICE);
         if (vb != null && vb.hasVibrator())
         {
@@ -698,7 +729,7 @@ public class FunctionButtonBar extends LinearLayout implements AdapterView.OnIte
         findViewById(R.id.wait_buttons).setVisibility(View.VISIBLE);
 
         //get the available map for this collection
-        assetSvs.fetchFunctionMap(token, selection, type)
+        assetSvs.fetchFunctionMap(token, selection, type, UpdateType.UPDATE_IF_REQUIRED)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(availabilityMap -> setupTokenMap(token, availabilityMap), this::onMapFetchError)
@@ -728,6 +759,8 @@ public class FunctionButtonBar extends LinearLayout implements AdapterView.OnIte
             populateButtons(token, tokenId);
             showButtons();
         }
+
+        callStandardFunctions.completeFunctionSetup();
     }
 
     private void showButtons()

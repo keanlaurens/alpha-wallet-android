@@ -21,18 +21,20 @@ import com.alphawallet.app.entity.AnalyticsProperties;
 import com.alphawallet.app.entity.GasEstimate;
 import com.alphawallet.app.entity.Operation;
 import com.alphawallet.app.entity.SignAuthenticationCallback;
+import com.alphawallet.app.entity.TSAttrCallback;
 import com.alphawallet.app.entity.Transaction;
 import com.alphawallet.app.entity.TransactionReturn;
+import com.alphawallet.app.entity.UpdateType;
 import com.alphawallet.app.entity.Wallet;
 import com.alphawallet.app.entity.WalletType;
 import com.alphawallet.app.entity.nftassets.NFTAsset;
-import com.alphawallet.app.entity.opensea.AssetContract;
 import com.alphawallet.app.entity.opensea.OpenSeaAsset;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.interact.CreateTransactionInteract;
 import com.alphawallet.app.interact.FetchTransactionsInteract;
 import com.alphawallet.app.interact.GenericWalletInteract;
 import com.alphawallet.app.repository.EthereumNetworkRepositoryType;
+import com.alphawallet.app.repository.PreferenceRepositoryType;
 import com.alphawallet.app.service.AnalyticsServiceType;
 import com.alphawallet.app.service.AssetDefinitionService;
 import com.alphawallet.app.service.GasService;
@@ -66,13 +68,13 @@ import com.alphawallet.token.entity.TicketRange;
 import com.alphawallet.token.entity.TokenScriptResult;
 import com.alphawallet.token.entity.TokenscriptElement;
 import com.alphawallet.token.entity.XMLDsigDescriptor;
-import com.alphawallet.token.tools.Numeric;
 import com.alphawallet.token.tools.TokenDefinition;
 import com.google.gson.Gson;
 
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.web3j.utils.Numeric;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -103,22 +105,21 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
     private final CreateTransactionInteract createTransactionInteract;
     private final GasService gasService;
     private final TokensService tokensService;
-    private final EthereumNetworkRepositoryType ethereumNetworkRepository;
     private final KeyService keyService;
     private final GenericWalletInteract genericWalletInteract;
     private final OpenSeaService openseaService;
     private final FetchTransactionsInteract fetchTransactionsInteract;
+    private final PreferenceRepositoryType preferences;
     private final MutableLiveData<Token> insufficientFunds = new MutableLiveData<>();
     private final MutableLiveData<String> invalidAddress = new MutableLiveData<>();
     private final MutableLiveData<XMLDsigDescriptor> sig = new MutableLiveData<>();
-    private final MutableLiveData<Boolean> newScriptFound = new MutableLiveData<>();
+    private final MutableLiveData<TokenDefinition> newScriptFound = new MutableLiveData<>();
+    private final MutableLiveData<TokenDefinition> attrFetchComplete = new MutableLiveData<>();
     private final MutableLiveData<Wallet> walletUpdate = new MutableLiveData<>();
     private final MutableLiveData<TransactionReturn> transactionFinalised = new MutableLiveData<>();
     private final MutableLiveData<TransactionReturn> transactionError = new MutableLiveData<>();
     private final MutableLiveData<Web3Transaction> gasEstimateComplete = new MutableLiveData<>();
     private final MutableLiveData<Pair<GasEstimate, Web3Transaction>> gasEstimateError = new MutableLiveData<>();
-    private final MutableLiveData<List<OpenSeaAsset.Trait>> traits = new MutableLiveData<>();
-    private final MutableLiveData<AssetContract> assetContract = new MutableLiveData<>();
     private final MutableLiveData<NFTAsset> nftAsset = new MutableLiveData<>();
     private final MutableLiveData<Boolean> scriptUpdateInProgress = new MutableLiveData<>();
     private Wallet wallet;
@@ -135,29 +136,32 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
     @Nullable
     private Disposable scriptUpdate;
 
+    @Nullable
+    private Disposable attrRefresh;
+
     @Inject
     TokenFunctionViewModel(
             AssetDefinitionService assetDefinitionService,
             CreateTransactionInteract createTransactionInteract,
             GasService gasService,
             TokensService tokensService,
-            EthereumNetworkRepositoryType ethereumNetworkRepository,
             KeyService keyService,
             GenericWalletInteract genericWalletInteract,
             OpenSeaService openseaService,
             FetchTransactionsInteract fetchTransactionsInteract,
-            AnalyticsServiceType analyticsService)
+            AnalyticsServiceType analyticsService,
+            PreferenceRepositoryType prefs)
     {
         this.assetDefinitionService = assetDefinitionService;
         this.createTransactionInteract = createTransactionInteract;
         this.gasService = gasService;
         this.tokensService = tokensService;
-        this.ethereumNetworkRepository = ethereumNetworkRepository;
         this.keyService = keyService;
         this.genericWalletInteract = genericWalletInteract;
         this.openseaService = openseaService;
         this.fetchTransactionsInteract = fetchTransactionsInteract;
         setAnalyticsService(analyticsService);
+        this.preferences = prefs;
     }
 
     public AssetDefinitionService getAssetDefinitionService()
@@ -185,9 +189,14 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
         return walletUpdate;
     }
 
-    public LiveData<Boolean> newScriptFound()
+    public LiveData<TokenDefinition> newScriptFound()
     {
         return newScriptFound;
+    }
+
+    public LiveData<TokenDefinition> attrFetchComplete()
+    {
+        return attrFetchComplete;
     }
 
     public LiveData<Boolean> scriptUpdateInProgress()
@@ -213,16 +222,6 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
     public MutableLiveData<Pair<GasEstimate, Web3Transaction>> gasEstimateError()
     {
         return gasEstimateError;
-    }
-
-    public MutableLiveData<List<OpenSeaAsset.Trait>> traits()
-    {
-        return traits;
-    }
-
-    public MutableLiveData<AssetContract> assetContract()
-    {
-        return assetContract;
     }
 
     public MutableLiveData<NFTAsset> nftAsset()
@@ -319,19 +318,6 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
     public String getTransactionBytes(Token token, BigInteger tokenId, FunctionDefinition def)
     {
         return assetDefinitionService.generateTransactionPayload(token, tokenId, def);
-    }
-
-    public TokenScriptResult getTokenScriptResult(Token token, BigInteger tokenId)
-    {
-        return assetDefinitionService.getTokenScriptResult(token, tokenId);
-    }
-
-    public BigInteger calculateMinGasPrice(BigInteger oldGasPrice)
-    {
-        //get 0.1GWEI in wei
-        BigInteger zeroPointOneWei = BalanceUtils.gweiToWei(BigDecimal.valueOf(0.1));
-        return new BigDecimal(oldGasPrice).multiply(BigDecimal.valueOf(1.1)).setScale(18, RoundingMode.UP).toBigInteger()
-                .add(zeroPointOneWei);
     }
 
     public Token getToken(long chainId, String contractAddress)
@@ -582,6 +568,10 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
         {
             scriptUpdate.dispose();
         }
+        if (attrRefresh != null && !attrRefresh.isDisposed())
+        {
+            attrRefresh.dispose();
+        }
 
         gasService.stopGasPriceCycle();
     }
@@ -599,7 +589,7 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
     public void checkForNewScript(Token token)
     {
         if (token == null) return;
-        //check server for new tokenscript
+        //check server for new TokenScript
         scriptUpdate = assetDefinitionService.checkServerForScript(token, scriptUpdateInProgress)
                 .observeOn(Schedulers.io())
                 .subscribeOn(Schedulers.single())
@@ -611,13 +601,14 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
         switch (td.nameSpace)
         {
             case UNCHANGED_SCRIPT:
-                newScriptFound.postValue(false);
+                td.nameSpace = UNCHANGED_SCRIPT;
+                newScriptFound.postValue(td);
                 break;
             case NO_SCRIPT:
                 scriptUpdateInProgress.postValue(false);
                 break;
             default:
-                newScriptFound.postValue(true);
+                newScriptFound.postValue(td);
                 break;
         }
     }
@@ -858,6 +849,26 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
         nftAsset.postValue(asset);
     }
 
+    public void completeTokenScriptSetup(Token token, BigInteger tokenId, String prevResult, TSAttrCallback tsCb)
+    {
+        final StringBuilder attrsTxt = new StringBuilder();
+        final List<TokenScriptResult.Attribute> attrs = new ArrayList<>();
+
+        if (hasTokenScript(token))
+        {
+            attrRefresh = assetDefinitionService.resolveAttrs(token, new ArrayList<>(Collections.singleton(tokenId)), null, UpdateType.USE_CACHE)
+                    .filter(attr -> !attr.userInput)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(attr -> { attrs.add(attr); attrsTxt.append(attr.text); }, this::onError, () -> checkUpdatedAttrs(prevResult, attrsTxt, attrs, tsCb));
+        }
+    }
+
+    private void checkUpdatedAttrs(String prevResult, final StringBuilder attrsText, List<TokenScriptResult.Attribute> attrs, TSAttrCallback tsCb)
+    {
+        tsCb.showTSAttributes(attrs, !prevResult.equals(attrsText.toString()));
+    }
+
     private void onAssetError(Throwable throwable)
     {
         Timber.d(throwable);
@@ -908,11 +919,6 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
         }
     }
 
-    public String getBrowserRPC(long chainId)
-    {
-        return ethereumNetworkRepository.getDappBrowserRPC(chainId);
-    }
-
     public boolean hasTokenScript(Token token)
     {
         return token != null && assetDefinitionService.getAssetDefinition(token) != null;
@@ -921,13 +927,14 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
     public void updateLocalAttributes(Token token, BigInteger tokenId)
     {
         //Fetch Allowed attributes, then call updateAllowedAttributes
-        assetDefinitionService.fetchFunctionMap(token, Collections.singletonList(tokenId), token.getInterfaceSpec())
+        assetDefinitionService.fetchFunctionMap(token, Collections.singletonList(tokenId), token.getInterfaceSpec(), UpdateType.USE_CACHE)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(availableActions -> updateAllowedAttrs(token, availableActions), this::onError)
                 .isDisposed();
     }
 
+    /** @noinspection SimplifyOptionalCallChains*/
     private void updateAllowedAttrs(Token token, Map<BigInteger, List<String>> availableActions)
     {
         if (!availableActions.keySet().stream().findFirst().isPresent())
@@ -935,13 +942,17 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
             return;
         }
         TokenDefinition td = assetDefinitionService.getAssetDefinition(token);
+        if (td == null)
+        {
+            return;
+        }
         List<Attribute> localAttrList = assetDefinitionService.getLocalAttributes(td, availableActions);
 
         //now refresh all these attrs
         assetDefinitionService.refreshAttributes(token, td, availableActions.keySet().stream().findFirst().get(), localAttrList)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(v -> { }, this::onError)
+                .subscribe(v -> attrFetchComplete.postValue(td), this::onError)
                 .isDisposed();
     }
 
@@ -991,5 +1002,43 @@ public class TokenFunctionViewModel extends BaseViewModel implements Transaction
     public Single<Wallet> findWallet(String walletAddress)
     {
         return genericWalletInteract.findWallet(walletAddress);
+    }
+
+    public String addAttestationAttrs(NFTAsset asset, Token token, TSAction action)
+    {
+        StringBuilder attrs = new StringBuilder();
+        if (asset != null && asset.isAttestation())
+        {
+            List<TokenScriptResult.Attribute> attestationAttrs = assetDefinitionService.getAttestationAttrs(token, action, asset.getAttestationID());
+            if (attestationAttrs != null)
+            {
+                for (TokenScriptResult.Attribute attr : attestationAttrs)
+                {
+                    onAttr(attrs, attr);
+                }
+            }
+        }
+
+        return attrs.toString();
+    }
+
+    private void onAttr(StringBuilder attrs, TokenScriptResult.Attribute attribute)
+    {
+        //is the attr incomplete?
+        if (!TextUtils.isEmpty(attribute.id))
+        {
+            Timber.d("ATTR/FA: " + attribute.id + " (" + attribute.name + ")" + " : " + attribute.text);
+            TokenScriptResult.addPair(attrs, attribute);
+        }
+    }
+
+    public GasService getGasService()
+    {
+        return gasService;
+    }
+
+    public boolean getUseTSViewer()
+    {
+        return preferences.getUseTSViewer();
     }
 }

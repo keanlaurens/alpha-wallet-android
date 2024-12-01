@@ -9,6 +9,8 @@ public class KeyProviderJNIImpl implements KeyProvider
 
     public native String getInfuraKey();
 
+    public native String getTSInfuraKey();
+
     public native String getSecondaryInfuraKey();
 
     public native String getTertiaryInfuraKey();
@@ -43,7 +45,19 @@ public class KeyProviderJNIImpl implements KeyProvider
 
     public native String getOkLinkKey();
 
+    public native String getOkLBKey();
+
     public native String getBlockPiBaobabKey();
 
     public native String getBlockPiCypressKey();
+
+    public native String getBlockNativeKey();
+
+    public native String getSmartPassKey();
+
+    public native String getSmartPassDevKey();
+
+    public native String getCoinGeckoKey();
+
+    public native String getBackupKey();
 }

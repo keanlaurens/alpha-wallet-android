@@ -336,6 +336,9 @@
     <string name="signer_address">Alamat</string>
     <string name="requester_url">Pemohon</string>
     <string name="dialog_title_sign_message">Tandai Pesan</string>
+    <string name="dialog_title_sign_message_sheet">⚠ Tandai Pesan ⚠</string>
+    <string name="sign_message_could_be_a_scam">Bahaya: Periksa sebelum menandatangani</string>
+    <string name="sign_message_could_be_a_scam2">Anda bisa berada dalam bahaya kehilangan token Anda terutama jika permintaan ini datang dari \'airdrop\'. Sign Message digunakan terutama oleh scammers. Lakukan penelusuran web untuk situs web ini dan gunakan \'penipuan\'.</string>
     <string name="dialog_title_sign_personal_message">Tandai Pesan Pribadi</string>
     <string name="dialog_title_sign_typed_message">Tandai pesan yang diketik</string>
     <string name="dialog_reject">Tolak</string>
@@ -383,7 +386,6 @@
     <string name="is_address">Baru saja memindai alamat Ethereum. Apakah Anda ingin mencoba mengunggah ini sebagai Token?</string>
     <string name="dialog_load_as_contract">Ungu Token</string>
     <string name="blockchain">%1$s Blockchain</string>
-    <string name="telegram">Telegram (Layanan Pelanggan)</string>
     <string name="transfer_request">Permintaan transfer</string>
     <string name="token_transfer_request">Permintaan transfer token: %1$s</string>
     <string name="generate_payment_request">Membuat Permintaan Pembayaran</string>
@@ -690,7 +692,7 @@
     <string name="gas_price_widget">Harga Gas: %1$s</string>
     <string name="gas_max">Biaya Maksimum</string>
     <string name="priority_fee">Biaya Prioritas</string>
-    <string name="base_fee">Biaya Dasar: %1$s</string>
+    <string name="base_fee">Biaya Dasar</string>
     <string name="gas_message">Biaya didasarkan pada beban jaringan blockchain Ethereum saat ini. Mereka tidak bergantung pada AlphaWallet. AlphaWallet menggunakan oracle langsung %1$s dan memperbarui harga gas setiap 15 detik.</string>
     <string name="set_your_speed">Tetapkan Milik Anda Sendiri</string>
     <string name="nonce_optional">Nonce (pilihan)</string>
@@ -726,7 +728,7 @@
     <string name="disconnect">Putuskan hubungan</string>
     <string name="keep_connect">Tetap Terhubung</string>
     <string name="beware_of_scammers">Waspadalah terhadap penipu! Jangan membagikan Seed Phrase.</string>
-    <string name="alphawallet_never_ask">AlphaWallet TIDAK AKAN PERNAH bertanya tentang Seed Phrase Anda (terutama di Telegram).</string>
+    <string name="alphawallet_never_ask">AlphaWallet TIDAK AKAN PERNAH bertanya tentang seed frase Anda (dan kami hanya membalas DM, tidak pernah DM terlebih dahulu).</string>
     <string name="your_seed_phrase">Seed Phrase Anda (jangan bagikan dengan siapa pun)</string>
     <string name="hide_seed_text">OK, Sembunyikan Seed Phrase</string>
     <string name="ens_not_match_wallet">Nama ENS tidak cocok dengan alamat dompet</string>
@@ -877,7 +879,6 @@
     <string name="label_slippage">Slippage (adalah perbedaan harga yang dapat terjadi antara saat order trading berlalu dan eksekusi aktualnya)</string>
     <string name="action_open_settings">Buka Pengaturan</string>
     <string name="message_no_connections_found">Tidak ada koneksi yang ditemukan untuk Chain ini.</string>
-    <string name="label_fees">Biaya</string>
     <string name="label_current_price">Harga Terkini</string>
     <string name="label_minimum_received">Minimum Diterima</string>
     <string name="label_balance">Saldo: </string>
@@ -917,8 +918,8 @@
     <string name="key_diagnostic">Key Diagnostic</string>
     <string name="key_found">Key found</string>
     <string name="key_not_found">Unable to find Key</string>
-    <string name="seed_phrase_public_key">Seed Phrase detected public key: %1$s</string>
-    <string name="keystore_public_key">Decoded Keystore public key: %1$s</string>
+    <string name="seed_phrase_public_key">Seed Phrase detected public key</string>
+    <string name="keystore_public_key">Decoded Keystore public key</string>
     <string name="enclave_locked">Locked</string>
     <string name="key_type_in_database">Key type in Database</string>
     <string name="key_entry_in_secure_enclave">Key Entry in Secure Enclave</string>
@@ -987,4 +988,21 @@
     <string name="minted">Minted</string>
     <string name="valid_from">Berlaku dari tanggal</string>
     <string name="valid_until">Berlaku hingga</string>
+    <string name="attestation_imported">Pengesahan Diimpor</string>
+    <string name="attestation_import_failed">Pengesahan Impor Gagal</string>
+    <string name="key_address">Alamat Penerbit</string>
+    <string name="no_connection">Tidak Ada Koneksi</string>
+    <string name="imported_smart_pass">SmartPass yang Diimpor</string>
+    <string name="smartpass_imported">SmartPass telah diimpor. Pass Anda harus ditingkatkan.</string>
+    <string name="no_connection_to_smart_layer">Tidak ada koneksi ke jaringan SmartLayer - coba impor Pass Anda lagi nanti.</string>
+    <string name="session_not_authorised">Sesi ini tidak diizinkan untuk menandatangani pesan di %s namun Anda dapat melewati batasan ini untuk menandatangani. Dengan pesan yang diketik tidak ada bahaya.</string>
+    <string name="override">Mengesampingkan</string>
+    <string name="developer_override">Penggantian Pengembang</string>
+    <string name="override_warning_text">Anda mungkin tanpa sadar menandatangani transaksi, yang dapat mengosongkan dana Anda. Anda mungkin ingin menandatangani bytecode sebagai pengembang, dan Anda dapat mengabaikan peringatan ini jika Anda menyetel mode pengembang di Setelan lanjutan.</string>
+    <string name="constructor">Constructor</string>
+    <string name="use_tokenscript_viewer">Penampil TokenScript</string>
+    <string name="not_recommended_to_visit">URL ini tidak masuk daftar putih. Anda masih dapat mengunjunginya dengan mengubah opsi perlindungan di pengaturan, tetapi tidak disarankan. Anda bisa kehilangan dana, terutama jika itu adalah investasi dalam penambangan kripto. Ada banyak situs investasi kripto yang teregulasi.</string>
+    <string name="developer_override_warning">Peringatan: Anda akan menonaktifkan perlindungan standar. Ini mencegah Anda dari penipuan. Gunakan mode pengembang hanya jika Anda sedang menguji dapp Anda, atau jika Anda 100\% yakin bahwa situs tersebut aman. Ingat: jika seseorang memberi tahu Anda untuk mengaktifkan pengaturan ini, Anda hampir pasti akan kehilangan dana kripto Anda.</string>
+    <string name="warning">Peringatan</string>
+    <string name="i_accept">Saya menerima risikonya</string>
 </resources>

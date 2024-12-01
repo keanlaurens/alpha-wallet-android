@@ -51,13 +51,13 @@ public interface EthereumNetworkRepositoryType {
     String getCurrentWalletAddress();
     boolean hasSetNetworkFilters();
     void setHasSetNetworkFilters();
-    String getDappBrowserRPC(long chainId);
 
     void saveCustomRPCNetwork(String networkName, String rpcUrl, long chainId, String symbol, String blockExplorerUrl, String explorerApiUrl, boolean isTestnet, Long oldChainId);
     void removeCustomRPCNetwork(long chainId);
 
     boolean isChainContract(long chainId, String address);
     boolean hasLockedGas(long chainId);
+    boolean hasBlockNativeGasAPI(long chainId);
 
     NetworkInfo getBuiltInNetwork(long chainId);
 

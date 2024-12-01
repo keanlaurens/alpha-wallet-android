@@ -3,9 +3,11 @@ package com.alphawallet.app.util;
 import static android.content.Context.INPUT_METHOD_SERVICE;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.Espresso.pressBack;
+import static androidx.test.espresso.action.ViewActions.swipeDown;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.RootMatchers.isDialog;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.isDisplayingAtLeast;
 import static androidx.test.espresso.matcher.ViewMatchers.isRoot;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withSubstring;
@@ -16,7 +18,6 @@ import static org.hamcrest.core.AllOf.allOf;
 import android.content.Context;
 import android.view.KeyEvent;
 import android.view.View;
-
 import android.view.inputmethod.InputMethodManager;
 
 import androidx.test.espresso.PerformException;
@@ -27,16 +28,10 @@ import androidx.test.espresso.matcher.ViewMatchers;
 import androidx.test.espresso.util.HumanReadables;
 import androidx.test.espresso.util.TreeIterables;
 
-import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
-
-import java.util.concurrent.TimeoutException;
 import com.alphawallet.app.R;
 
-import junit.framework.AssertionFailedError;
-
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
 import java.util.concurrent.TimeoutException;
 
@@ -175,14 +170,14 @@ public class Helper
 
     public static void click(Matcher<View> matcher, int timeoutInSeconds)
     {
-        onView(isRoot()).perform(Helper.waitUntil(Matchers.allOf(matcher, isDisplayed()), timeoutInSeconds));
+        onView(isRoot()).perform(Helper.waitUntil(CoreMatchers.allOf(matcher, isDisplayed()), timeoutInSeconds));
         onView(matcher).perform(ViewActions.click(doNothing())); // if click executed as long press, do nothing and retry clicking
     }
 
     public static void click(Matcher<View> matcher)
     {
 //        Helper.wait(1); //slight pause
-        onView(isRoot()).perform(Helper.waitUntil(Matchers.allOf(matcher, isDisplayed())));
+        onView(isRoot()).perform(Helper.waitUntil(CoreMatchers.allOf(matcher, isDisplayed())));
         onView(matcher).perform(ViewActions.click(doNothing())); // if click executed as long press, do nothing and retry clicking
     }
 
@@ -226,6 +221,46 @@ public class Helper
         throw new RuntimeException("Can not find " + matcher.toString());
     }
 
+    public static void clickMadly2(Matcher matcher)
+    {
+        for (int i = 0; i < 50; i++)
+        {
+            try
+            {
+                onView(matcher).perform(ViewActions.click(doNothing()));
+                return;
+            }
+            catch (Exception e)
+            {
+                //
+                Helper.wait(1);
+            }
+        }
+
+        throw new RuntimeException("Can not find " + matcher.toString());
+    }
+
+
+
+    public static void clickMadly(Matcher matcher)
+    {
+        for (int i = 0; i < 50; i++)
+        {
+            try
+            {
+                //onView(matcher).perform(ViewActions.click(doNothing()));
+                click(matcher, 1);
+                return;
+            }
+            catch (Exception e)
+            {
+                //
+            }
+        }
+
+        throw new RuntimeException("Can not find " + matcher.toString());
+    }
+
     //This is an item inside a list that doesn't scroll (eg TestNet / Mainnet list)
     public static void clickStaticListItem(Matcher matcher)
     {
@@ -233,15 +268,64 @@ public class Helper
         {
             try
             {
-                click(matcher, 0);
+                click(matcher, 1);
                 return;
             }
             catch (Exception e)
             {
-
+                //
             }
         }
-        //throw new RuntimeException("Can not find " + matcher.toString());
+
+        throw new RuntimeException("Can not find " + matcher.toString());
+    }
+
+    public static ViewAction clickSomething(Matcher<View> matcher, int timeoutInSeconds)
+    {
+        return new ViewAction()
+        {
+            @Override
+            public Matcher<View> getConstraints()
+            {
+                return isRoot();
+            }
+
+            @Override
+            public String getDescription()
+            {
+                return "clickSomething " + matcher.toString() + " during " + timeoutInSeconds + " seconds.";
+            }
+
+            @Override
+            public void perform(final UiController uiController, final View view)
+            {
+                uiController.loopMainThreadUntilIdle();
+                final long startTime = System.currentTimeMillis();
+                final long endTime = startTime + timeoutInSeconds * 1000L;
+
+                do
+                {
+                    for (View child : TreeIterables.breadthFirstViewTraversal(view.getRootView()))
+                    {
+                        if (matcher.matches(child))
+                        {
+                            child.performClick();
+                            return;
+                        }
+                    }
+
+                    uiController.loopMainThreadForAtLeast(50);
+                }
+                while (System.currentTimeMillis() < endTime);
+
+                // timeout happens
+                throw new PerformException.Builder()
+                        .withActionDescription(this.getDescription())
+                        .withViewDescription(HumanReadables.describe(view))
+                        .withCause(new TimeoutException())
+                        .build();
+            }
+        };
     }
 
     private static void scrollDown(int list)
@@ -349,5 +433,30 @@ public class Helper
         }
 
         return false;
+    }
+
+    public static ViewAction withCustomConstraints(final ViewAction action, final Matcher<View> constraints) {
+        return new ViewAction() {
+            @Override
+            public Matcher<View> getConstraints() {
+                return constraints;
+            }
+
+            @Override
+            public String getDescription() {
+                return action.getDescription();
+            }
+
+            @Override
+            public void perform(UiController uiController, View view) {
+                action.perform(uiController, view);
+            }
+        };
+    }
+
+    public static void swipeDownAction()
+    {
+        onView(withId(R.id.refresh_layout_wallet))
+                .perform(withCustomConstraints(swipeDown(), isDisplayingAtLeast(40)));
     }
 }

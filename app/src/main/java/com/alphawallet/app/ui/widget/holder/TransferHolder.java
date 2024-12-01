@@ -24,7 +24,6 @@ import com.alphawallet.app.repository.EventResult;
 import com.alphawallet.app.repository.entity.RealmAuxData;
 import com.alphawallet.app.service.AssetDefinitionService;
 import com.alphawallet.app.service.TokensService;
-import com.alphawallet.app.ui.TokenActivity;
 import com.alphawallet.app.ui.TransactionDetailActivity;
 import com.alphawallet.app.ui.widget.entity.TokenTransferData;
 import com.alphawallet.app.util.Utils;
@@ -58,7 +57,6 @@ public class TransferHolder extends BinderViewHolder<TokenTransferData> implemen
     private final FetchTransactionsInteract fetchTransactionsInteract;
     private final TokensService tokensService;
     private String hashKey;
-    private boolean fromTokenView;
 
     @Nullable
     private Disposable disposable;
@@ -83,7 +81,6 @@ public class TransferHolder extends BinderViewHolder<TokenTransferData> implemen
     @Override
     public void bind(@Nullable TokenTransferData data, @NonNull Bundle addition)
     {
-        fromTokenView = false;
         transferData = data;
         String walletAddress = addition.getString(DEFAULT_ADDRESS_ADDITIONAL);
 
@@ -101,7 +98,7 @@ public class TransferHolder extends BinderViewHolder<TokenTransferData> implemen
             disposable.dispose();
         }
 
-        tokenIcon.bindData(token, assetDefinition);
+        tokenIcon.bindData(token);
 
         //We haven't yet fetched the underlying transaction. Fetch and display
         if (tx == null)
@@ -123,6 +120,7 @@ public class TransferHolder extends BinderViewHolder<TokenTransferData> implemen
     private void bindView(TokenTransferData data, Transaction tx)
     {
         txLoad.setVisibility(View.GONE);
+        findViewById(R.id.token_name_detail).setVisibility(View.GONE);
 
         String sym = token != null ? token.getShortSymbol() : getContext().getString(R.string.eth);
         String itemView = null;
@@ -140,10 +138,10 @@ public class TransferHolder extends BinderViewHolder<TokenTransferData> implemen
         if (td != null && td.getActivityCards().containsKey(data.eventName))
         {
             TSTokenView view = td.getActivityCards().get(data.eventName).getView(ASSET_SUMMARY_VIEW_NAME);
-            if (view != null) itemView = view.tokenView;
+            if (view != null) itemView = view.getTokenView();
         }
 
-        String transactionValue = getEventAmount(data, tx);
+        String transactionValue = transferData.getEventAmount(token, tx);
 
         if (TextUtils.isEmpty(transactionValue))
         {
@@ -154,68 +152,24 @@ public class TransferHolder extends BinderViewHolder<TokenTransferData> implemen
             value.setText(getString(R.string.valueSymbol, transactionValue, sym));
         }
 
-        CharSequence typeValue = Utils.createFormattedValue(getContext(), getTitle(data), token);
+        CharSequence typeValue = Utils.createFormattedValue(getTitle(data), token);
 
         type.setText(typeValue);
         address.setText(data.getDetail(getContext(), tx, token, itemView));
         tokenIcon.setStatusIcon(data.getEventStatusType());
         tokenIcon.setChainIcon(token.tokenInfo.chainId);
 
+        //check if this is a mint, in which case we already display token name
+        if (!data.isMintEvent())
+        {
+            setTokenDetailName(token);
+        }
+
         //timestamp
         date.setText(Utils.localiseUnixTime(getContext(), data.getTimeStampSeconds()));
         date.setVisibility(View.VISIBLE);
 
         hashKey = data.hash;
-    }
-
-    @Override
-    public void setFromTokenView()
-    {
-        fromTokenView = true;
-    }
-
-    private String getEventAmount(TokenTransferData eventData, Transaction tx)
-    {
-        if (token == null)
-        {
-            return "";
-        }
-
-        if (tx != null)
-        {
-            tx.getDestination(token); //build decoded input
-        }
-
-        Map<String, EventResult> resultMap = eventData.getEventResultMap();
-        String value = "";
-        switch (eventData.eventName)
-        {
-            case "received":
-                value = "+ ";
-                //drop through
-            case "sent":
-                if (value.length() == 0) value = "- ";
-                if (resultMap.get("amount") != null)
-                {
-                    value = token.convertValue(value, resultMap.get("amount"), TRANSACTION_BALANCE_PRECISION);
-                }
-                break;
-            case "approvalObtained":
-            case "ownerApproved":
-                if (resultMap.get("value") != null)
-                {
-                    value = token.convertValue(value, resultMap.get("value"), TRANSACTION_BALANCE_PRECISION);
-                }
-                break;
-            default:
-                if (token != null && tx != null)
-                {
-                    value = token.isEthereum() ? token.getTransactionValue(tx, TRANSACTION_BALANCE_PRECISION) : tx.getOperationResult(token, TRANSACTION_BALANCE_PRECISION);
-                }
-                break;
-        }
-
-        return value;
     }
 
     private String getTitle(TokenTransferData eventData)
@@ -261,6 +215,7 @@ public class TransferHolder extends BinderViewHolder<TokenTransferData> implemen
         intent.putExtra(C.EXTRA_TXHASH, hashKey);
         intent.putExtra(C.EXTRA_CHAIN_ID, token.tokenInfo.chainId);
         intent.putExtra(C.EXTRA_ADDRESS, token.getAddress());
+        intent.putExtra(C.EXTRA_TRANSACTION_DATA, transferData);
         intent.setFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
         getContext().startActivity(intent);
     }

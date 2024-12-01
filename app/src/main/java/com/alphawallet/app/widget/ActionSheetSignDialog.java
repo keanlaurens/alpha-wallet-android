@@ -1,6 +1,7 @@
 package com.alphawallet.app.widget;
 
 import android.app.Activity;
+import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.Toast;
@@ -22,8 +23,10 @@ import com.alphawallet.app.util.Utils;
 import com.alphawallet.app.viewmodel.SignDialogViewModel;
 import com.alphawallet.hardware.SignatureFromKey;
 import com.alphawallet.hardware.SignatureReturnType;
+import com.alphawallet.token.entity.SignMessageType;
 import com.alphawallet.token.entity.Signable;
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.request.RequestOptions;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -71,6 +74,15 @@ public class ActionSheetSignDialog extends ActionSheet implements StandardFuncti
         setCanceledOnTouchOutside(false);
     }
 
+    @Override
+    public void onCreate(Bundle savedInstanceState)
+    {
+        super.onCreate(savedInstanceState);
+
+        //ensure wallet is fixed
+        viewModel.completeWalletSetup();
+    }
+
     private void setupView()
     {
         requesterDetail.setupRequester(signable.getOrigin());
@@ -82,6 +94,11 @@ public class ActionSheetSignDialog extends ActionSheet implements StandardFuncti
             signWidget.setupSignData(signable, () -> {
                 functionBar.setPrimaryButtonEnabled(true);
             });
+        }
+        else if (signable.getMessageType() == SignMessageType.SIGN_MESSAGE)
+        {
+            toolbar.setTitle(Utils.getSignMessageTitle(getContext().getString(R.string.dialog_title_sign_message_sheet)));
+            signWidget.setupSignData(signable);
         }
         else
         {

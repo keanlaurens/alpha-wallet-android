@@ -67,11 +67,12 @@ public class CopyTextView extends LinearLayout
 
     private void bindViews()
     {
-        if (lines == 2)
+        if (lines > 1)
         {
             button = findViewById(R.id.button_address);
             findViewById(R.id.button).setVisibility(View.GONE);
             button.setVisibility(View.VISIBLE);
+            button.setLines(lines);
         }
         else
         {
@@ -85,6 +86,30 @@ public class CopyTextView extends LinearLayout
     public String getText()
     {
         return originalText;
+    }
+
+    public void setFixedText(CharSequence text)
+    {
+        originalText = text.toString();
+
+        setVisibility(TextUtils.isEmpty(originalText) ? View.GONE : View.VISIBLE);
+
+        if (Utils.isAddressValid(originalText))
+        {
+            button.setText(Utils.splitAddress(originalText, lines));
+        }
+        else if (Utils.isDivisibleString(originalText))
+        {
+            button.setText(Utils.splitHex(originalText, lines));
+        }
+        else if (Utils.isTxHashValid(originalText))
+        {
+            button.setText(Utils.formatTxHash(originalText, 10));
+        }
+        else
+        {
+            button.setText(originalText);
+        }
     }
 
     public void setText(CharSequence text)

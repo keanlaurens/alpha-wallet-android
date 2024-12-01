@@ -73,7 +73,7 @@ public class MyAddressActivity extends BaseActivity implements AmountReadyCallba
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
-        screenWidth = (int) ((float)DisplayUtils.getScreenResolution(this).x * 0.8f);
+        screenWidth = Math.min((int) ((float)DisplayUtils.getScreenResolution(this).x * 0.8f), 1900); //restrict max width
         super.onCreate(savedInstanceState);
         initViewModel();
         overrideNetwork = 0;
@@ -201,7 +201,7 @@ public class MyAddressActivity extends BaseActivity implements AmountReadyCallba
         findViewById(R.id.toolbar_title).setVisibility(View.GONE);
         setTitle("");
         displayAddress = Keys.toChecksumAddress(wallet.address);
-        networkInfo = viewModel.getEthereumNetworkRepository().getNetworkByChain(overrideNetwork);
+        networkInfo = viewModel.getNetworkByChain(overrideNetwork);
         currentMode = AddressMode.MODE_POS;
         layoutInputAmount.setVisibility(View.VISIBLE);
 
@@ -212,7 +212,7 @@ public class MyAddressActivity extends BaseActivity implements AmountReadyCallba
     private void setupPOSMode(NetworkInfo info)
     {
         if (token == null) token = viewModel.getTokenService().getToken(info.chainId, wallet.address);
-        amountInput.setupToken(token, viewModel.getAssetDefinitionService(), viewModel.getTokenService(), this);
+        amountInput.setupToken(token, viewModel.getTokenService(), this);
         amountInput.setAmount("");
         updateCryptoAmount(BigDecimal.ZERO);
     }
@@ -235,7 +235,7 @@ public class MyAddressActivity extends BaseActivity implements AmountReadyCallba
 
         displayAddress = Keys.toChecksumAddress(wallet.address);
         setTitle(getString(R.string.my_wallet_address));
-        copyAddress.setText(displayAddress);
+        copyAddress.setFixedText(displayAddress);
         currentMode = AddressMode.MODE_ADDRESS;
         if (getCurrentFocus() != null) {
             KeyboardUtils.hideKeyboard(getCurrentFocus());
@@ -340,7 +340,7 @@ public class MyAddressActivity extends BaseActivity implements AmountReadyCallba
             }
             else
             {
-                amountInput.setupToken(token, viewModel.getAssetDefinitionService(), viewModel.getTokenService(), this);
+                amountInput.setupToken(token, viewModel.getTokenService(), this);
             }
         }
     }

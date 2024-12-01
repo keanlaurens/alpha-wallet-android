@@ -20,8 +20,8 @@ AlphaWallet and TokenScript have been used by tokenisation projects like FIFA an
 
 ## About AlphaWallet - Features
 
-Easy to use and secure open source Ethereum wallet for Android and iOS, with native ERC20, ERC721, ERC1155 and ERC875 support. AlphaWallet supports all Ethereum based networks: Ethereum, xDai, Ethereum Classic, Binance Smart Chain, Heco, Polygon, Avalanche, Fantom, L2 chains Optimistic and Arbitrum, and Palm.
-TestChains: Goerli, Binance Test, Heco Test, Fuji (Avalanche test), Fantom Test, Polygon Test, Optimistic and Arbitrum Test, Cronos Test and Palm test.
+Easy to use and secure open source Ethereum wallet for Android and iOS, with native ERC20, ERC721, ERC1155 and ERC875 support. AlphaWallet supports all Ethereum based networks: Ethereum, Gnosis, Ethereum Classic, Binance Smart Chain, Heco, Polygon, Avalanche, Fantom, L2 chains Optimistic, Arbitrum and Linea, and Palm.
+TestChains: Sepolia, Holesky, Goerli, Binance Test, Fuji (Avalanche test), Fantom Test, Polygon Test, Optimistic and Arbitrum Test, Cronos Test and Palm test.
 
 - Beginner Friendly
 - Secure Enclave Security
@@ -71,7 +71,7 @@ gpr.key=The GitHub Personal Access Token you created in previous step
 ```
 6. Build the project in AndroidStudio or Run `./gradlew build` to install tools and dependencies. See [BUILD.md](BUILD.md) for more details.
 
-You can also build it from the commandline just like other Android apps. Note that JDK 8 and 11 are the versions supported by Android.
+You can also build it from the commandline just like other Android apps. Note that JDK 17 is the version now supported by Android. We build with the JetBrains JDK.
 
 Find more information in our available [documentation](https://github.com/AlphaWallet/alpha-wallet-android/blob/master/docs/overview.md).
 
@@ -120,7 +120,7 @@ If you are forking AlphaWallet and you have a cool Token, please consider donati
 
 ### Request or submit a feature :postbox:
 
-Would you like to request a feature? Please get in touch with us [Telegram](https://t.me/AlphaWalletGroup), [Discord](https://discord.gg/mx23YWRTYf), [Twitter](https://twitter.com/AlphaWallet) or through our [community forums](https://community.tokenscript.org/).
+Would you like to request a feature? Please get in touch with us [Discord](https://discord.gg/mx23YWRTYf), [Twitter](https://twitter.com/AlphaWallet) or through our [community forums](https://community.tokenscript.org/).
 
 If you’d like to contribute code with a Pull Request, please make sure to follow code submission guidelines.
 
@@ -130,14 +130,12 @@ We want to connect businesses and consumers with the new digital economic infras
 
 <a href="http://www.linkedin.com/shareArticle?mini=true&amp;url=https://github.com/AlphaWallet/alpha-wallet-android"><img src=dmz/src/main/resources/static/readme/share_linkedin-btn.svg height="35" alt="share on linkedin"></a>
 <a href="https://twitter.com/share?url=https://github.com/AlphaWallet/alpha-wallet-android&amp;text=Open%20Source%20Wallet%20for%20Android&amp;hashtags=alphawallet"><img src=dmz/src/main/resources/static/readme/share_tweet-btn.svg height="35" alt="share on twitter"></a>
-<a href="https://t.me/share/url?url=https://github.com/AlphaWallet/alpha-wallet-android&text=Check%20this%20out!"><img src=dmz/src/main/resources/static/readme/share_telegram-btn.svg height="35" alt="share on telegram"></a>
 <a href="mailto:?Subject=open source alphawallet for android&amp;Body=Found%20this%20one,%20check%20it%20out!%20 https://github.com/AlphaWallet/alpha-wallet-android"><img src=dmz/src/main/resources/static/readme/share_mail-btn.svg height="35" alt="send via email"></a>
 <a href="http://reddit.com/submit?url=https://github.com/AlphaWallet/alpha-wallet-android&amp;title=Open%20Source%20AlphaWallet%20for%20Android"><img src=dmz/src/main/resources/static/readme/share_reddit-btn.svg height="35" alt="share on reddit"></a>
 <a href="http://www.facebook.com/sharer.php?u=https://github.com/AlphaWallet/alpha-wallet-android"><img src=dmz/src/main/resources/static/readme/share_facebook-btn.svg height="35" alt="share on facebook"></a>
 
 To learn more about us, please check our Blog or join the conversation:
 - [Blog](https://medium.com/alphawallet)
-- [Telegram](https://t.me/AlphaWalletGroup)
 - [Twitter](https://twitter.com/AlphaWallet)
 - [Facebook](https://www.facebook.com/AlphaWallet)
 - [LinkedIn](https://www.linkedin.com/company/alphawallet/)

@@ -32,6 +32,8 @@ public class SharedPreferenceRepository implements PreferenceRepositoryType {
     public static final String HIDE_ZERO_BALANCE_TOKENS = "hide_zero_balance_tokens";
     public static final String FULL_SCREEN_STATE = "full_screen";
     public static final String EXPERIMENTAL_1559_TX = "ex_1559_tx";
+    public static final String USE_TOKENSCRIPT_VIEWER = "use_ts_viewer";
+    public static final String DEVELOPER_OVERRIDE = "developer_override";
     public static final String TESTNET_ENABLED = "testnet_enabled";
     public static final String PRICE_ALERTS = "price_alerts";
     private static final String SET_NETWORK_FILTERS = "set_filters";
@@ -185,6 +187,18 @@ public class SharedPreferenceRepository implements PreferenceRepositoryType {
     }
 
     @Override
+    public boolean getDeveloperOverride()
+    {
+        return pref.getBoolean(DEVELOPER_OVERRIDE, false);
+    }
+
+    @Override
+    public void setDeveloperOverride(boolean state)
+    {
+        pref.edit().putBoolean(DEVELOPER_OVERRIDE, state).apply();
+    }
+
+    @Override
     public boolean isTestnetEnabled()
     {
         return pref.getBoolean(TESTNET_ENABLED, false);
@@ -199,7 +213,7 @@ public class SharedPreferenceRepository implements PreferenceRepositoryType {
     @Override
     public boolean getUse1559Transactions()
     {
-        return pref.getBoolean(EXPERIMENTAL_1559_TX, false);
+        return pref.getBoolean(EXPERIMENTAL_1559_TX, true);
     }
 
     @Override
@@ -456,8 +470,21 @@ public class SharedPreferenceRepository implements PreferenceRepositoryType {
     }
 
     @Override
-    public void setPostNotificationsPermissionRequested(String address, boolean hasRequested) {
+    public void setPostNotificationsPermissionRequested(String address, boolean hasRequested)
+    {
         pref.edit().putBoolean(getAddressKey(POST_NOTIFICATIONS_PERMISSION_REQUESTED, address), hasRequested).apply();
+    }
+
+    @Override
+    public boolean getUseTSViewer()
+    {
+        return pref.getBoolean(USE_TOKENSCRIPT_VIEWER, true);
+    }
+
+    @Override
+    public void setUseTSViewer(boolean state)
+    {
+        pref.edit().putBoolean(USE_TOKENSCRIPT_VIEWER, state).apply();
     }
 
     @NonNull

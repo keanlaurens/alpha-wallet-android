@@ -33,7 +33,9 @@ import androidx.core.content.ContextCompat;
 
 import com.alphawallet.app.C;
 import com.alphawallet.app.R;
+import com.alphawallet.app.entity.ContractType;
 import com.alphawallet.app.entity.nftassets.NFTAsset;
+import com.alphawallet.app.entity.tokens.Attestation;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.ui.widget.TokensAdapterCallback;
 import com.alphawallet.app.util.Utils;
@@ -210,7 +212,6 @@ public class NFTImageView extends RelativeLayout implements View.OnTouchListener
     private void setWebView(String imageUrl, ImageType hint)
     {
         progressBar.setVisibility(VISIBLE);
-        webView.setOnTouchListener(this);
         webView.setVerticalScrollBarEnabled(false);
         webView.setHorizontalScrollBarEnabled(false);
         webView.setWebChromeClient(new WebChromeClient());
@@ -243,6 +244,7 @@ public class NFTImageView extends RelativeLayout implements View.OnTouchListener
             else if (useType.getImageType() == ImageType.ANIM)
             {
                 String loaderAnim = loadFile(getContext(), R.raw.token_anim).replace("[URL]", imageUrl).replace("[MIME]", useType.getMimeType());
+                webView.setOnTouchListener(this);
                 webView.getSettings().setJavaScriptEnabled(true);
                 webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(true);
                 webView.getSettings().setMediaPlaybackRequiresUserGesture(false);
@@ -254,8 +256,17 @@ public class NFTImageView extends RelativeLayout implements View.OnTouchListener
             }
             else if (useType.getImageType() == ImageType.MODEL)
             {
+                webView.setOnTouchListener(this);
                 String loader = loadFile(getContext(), R.raw.token_model).replace("[URL]", imageUrl);
                 String base64 = android.util.Base64.encodeToString(loader.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT);
+                webView.loadData(base64, "text/html; charset=utf-8", "base64");
+            }
+            else if (useType.getImageType() == ImageType.RAW_SVG)
+            {
+                //insert class="center-fit"
+                String svgClass = isThumbnail ? imageUrl : addClassToSvg(imageUrl, "center-fit");
+                String loaderSvg = loadFile(getContext(), R.raw.token_svg).replace("[SVG_IMAGE_CODE]", svgClass);
+                String base64 = android.util.Base64.encodeToString(loaderSvg.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT);
                 webView.loadData(base64, "text/html; charset=utf-8", "base64");
             }
             else
@@ -269,6 +280,19 @@ public class NFTImageView extends RelativeLayout implements View.OnTouchListener
                 }
             }
         });
+    }
+
+    private String addClassToSvg(String svgString, String className)
+    {
+        if (svgString.contains("class=\"" + className + "\""))
+        {
+            return svgString;
+        }
+        else
+        {
+            int insertPosition = svgString.indexOf("<svg") + 4;
+            return svgString.substring(0, insertPosition) + " class=\"" + className + "\"" + svgString.substring(insertPosition);
+        }
     }
 
     private void setAttrs(Context context, AttributeSet attrs)
@@ -514,6 +538,22 @@ public class NFTImageView extends RelativeLayout implements View.OnTouchListener
         return true;
     }
 
+    public void setAttestationImage(Token token)
+    {
+        if (token.getInterfaceSpec() == ContractType.ATTESTATION)
+        {
+            Attestation attn = (Attestation) token;
+            if (attn.isSmartPass())
+            {
+                setImageResource(R.drawable.smart_pass);
+            }
+            else
+            {
+                setImageResource(R.drawable.zero_one_block);
+            }
+        }
+    }
+
     private static class DisplayType
     {
         private final ImageType type;
@@ -529,6 +569,12 @@ public class NFTImageView extends RelativeLayout implements View.OnTouchListener
                 mimeStr = "";
                 return;
             }
+            else if (url.startsWith("<svg") && url.endsWith("</svg>")) //ensure url is full SVG
+            {
+                type = ImageType.RAW_SVG;
+                mimeStr = "";
+                return;
+            }
 
             String extension = MimeTypeMap.getFileExtensionFromUrl(url);
 
@@ -536,7 +582,11 @@ public class NFTImageView extends RelativeLayout implements View.OnTouchListener
             {
                 case "":
                     mimeStr = "";
-                    if (hint == ImageType.IMAGE)
+                    if (url.contains("tokenscript.org"))
+                    {
+                        type = ImageType.WEB;
+                    }
+                    else if (hint == ImageType.IMAGE || hint == ImageType.ANIM)
                     {
                         type = hint;
                     }
@@ -579,6 +629,6 @@ public class NFTImageView extends RelativeLayout implements View.OnTouchListener
 
     private enum ImageType
     {
-        IMAGE, ANIM, WEB, MODEL, AUDIO
+        IMAGE, ANIM, WEB, MODEL, AUDIO, RAW_SVG
     }
 }

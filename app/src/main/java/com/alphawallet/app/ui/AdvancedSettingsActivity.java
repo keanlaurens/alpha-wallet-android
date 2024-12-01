@@ -6,6 +6,8 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.webkit.CookieManager;
+import android.webkit.WebStorage;
 import android.webkit.WebView;
 import android.widget.LinearLayout;
 import android.widget.Toast;
@@ -44,6 +46,8 @@ public class AdvancedSettingsActivity extends BaseActivity
     private SettingsItemView eip1559Transactions;
     private SettingsItemView analytics;
     private SettingsItemView crashReporting;
+    private SettingsItemView developerOverride;
+    private SettingsItemView tokenScriptViewer;
     private AWalletAlertDialog waitDialog = null;
 
     @Nullable
@@ -54,7 +58,7 @@ public class AdvancedSettingsActivity extends BaseActivity
     {
         super.onCreate(savedInstanceState);
         viewModel = new ViewModelProvider(this)
-            .get(AdvancedSettingsViewModel.class);
+                .get(AdvancedSettingsViewModel.class);
 
         setContentView(R.layout.activity_generic_settings);
         toolbar();
@@ -79,71 +83,122 @@ public class AdvancedSettingsActivity extends BaseActivity
     private void initializeSettings()
     {
         nodeStatus = new SettingsItemView.Builder(this)
-            .withIcon(R.drawable.ic_settings_node_status)
-            .withTitle(R.string.action_node_status)
-            .withListener(this::onNodeStatusClicked)
-            .build();
+                .withIcon(R.drawable.ic_settings_node_status)
+                .withTitle(R.string.action_node_status)
+                .withListener(this::onNodeStatusClicked)
+                .build();
 
         console = new SettingsItemView.Builder(this)
-            .withIcon(R.drawable.ic_settings_console)
-            .withTitle(R.string.title_console)
-            .withListener(this::onConsoleClicked)
-            .build();
+                .withIcon(R.drawable.ic_settings_console)
+                .withTitle(R.string.title_console)
+                .withListener(this::onConsoleClicked)
+                .build();
 
         clearBrowserCache = new SettingsItemView.Builder(this)
-            .withIcon(R.drawable.ic_settings_cache)
-            .withTitle(R.string.title_clear_browser_cache)
-            .withListener(this::onClearBrowserCacheClicked)
-            .build();
-
-        tokenScript = new SettingsItemView.Builder(this)
-            .withIcon(R.drawable.ic_settings_tokenscript)
-            .withTitle(R.string.title_tokenscript)
-            .withListener(this::onTokenScriptClicked)
-            .build();
+                .withIcon(R.drawable.ic_settings_cache)
+                .withTitle(R.string.title_clear_browser_cache)
+                .withListener(this::onClearBrowserCacheClicked)
+                .build();
 
         //TODO Change Icon
         tokenScriptManagement = new SettingsItemView.Builder(this)
-            .withIcon(R.drawable.ic_settings_tokenscript_manage)
-            .withTitle(R.string.tokenscript_management)
-            .withListener(this::onTokenScriptManagementClicked)
-            .build();
+                .withIcon(R.drawable.ic_settings_tokenscript_manage)
+                .withTitle(R.string.tokenscript_management)
+                .withListener(this::onTokenScriptManagementClicked)
+                .build();
+
+        tokenScriptViewer = new SettingsItemView.Builder(this)
+                .withType(SettingsItemView.Type.TOGGLE)
+                .withIcon(R.drawable.ic_tokenscript)
+                .withTitle(R.string.use_tokenscript_viewer)
+                .withListener(this::onUseTokenScriptViewer)
+                .build();
 
         fullScreenSettings = new SettingsItemView.Builder(this)
-            .withType(SettingsItemView.Type.TOGGLE)
-            .withIcon(R.drawable.ic_phoneicon)
-            .withTitle(R.string.fullscreen)
-            .withListener(this::onFullScreenClicked)
-            .build();
+                .withType(SettingsItemView.Type.TOGGLE)
+                .withIcon(R.drawable.ic_phoneicon)
+                .withTitle(R.string.fullscreen)
+                .withListener(this::onFullScreenClicked)
+                .build();
 
         refreshTokenDatabase = new SettingsItemView.Builder(this)
-            .withIcon(R.drawable.ic_settings_reset_tokens)
-            .withTitle(R.string.title_reload_token_data)
-            .withListener(this::onReloadTokenDataClicked)
-            .build();
+                .withIcon(R.drawable.ic_settings_reset_tokens)
+                .withTitle(R.string.title_reload_token_data)
+                .withListener(this::onReloadTokenDataClicked)
+                .build();
 
         eip1559Transactions = new SettingsItemView.Builder(this)
-            .withType(SettingsItemView.Type.TOGGLE)
-            .withIcon(R.drawable.ic_icons_settings_1559)
-            .withTitle(R.string.experimental_1559)
-            .withSubtitle(R.string.experimental_1559_tx_sub)
-            .withListener(this::on1559TransactionsClicked)
-            .build();
+                .withType(SettingsItemView.Type.TOGGLE)
+                .withIcon(R.drawable.ic_icons_settings_1559)
+                .withTitle(R.string.experimental_1559)
+                .withListener(this::on1559TransactionsClicked)
+                .build();
 
         analytics = new SettingsItemView.Builder(this)
-            .withIcon(R.drawable.ic_settings_analytics)
-            .withTitle(R.string.settings_title_analytics)
-            .withListener(this::onAnalyticsClicked)
-            .build();
+                .withIcon(R.drawable.ic_settings_analytics)
+                .withTitle(R.string.settings_title_analytics)
+                .withListener(this::onAnalyticsClicked)
+                .build();
 
         crashReporting = new SettingsItemView.Builder(this)
-            .withIcon(R.drawable.ic_settings_crash_reporting)
-            .withTitle(R.string.settings_title_crash_reporting)
-            .withListener(this::onCrashReportingClicked)
-            .build();
+                .withIcon(R.drawable.ic_settings_crash_reporting)
+                .withTitle(R.string.settings_title_crash_reporting)
+                .withListener(this::onCrashReportingClicked)
+                .build();
+
+        developerOverride = new SettingsItemView.Builder(this)
+                .withType(SettingsItemView.Type.TOGGLE)
+                .withIcon(R.drawable.ic_settings_warning)
+                .withTitle(R.string.developer_override)
+                .withListener(this::onDeveloperOverride)
+                .build();
 
         fullScreenSettings.setToggleState(viewModel.getFullScreenState());
         eip1559Transactions.setToggleState(viewModel.get1559TransactionsState());
+        developerOverride.setToggleState(viewModel.getDeveloperOverrideState());
+        tokenScriptViewer.setToggleState(viewModel.getTokenScriptViewerState());
+    }
+
+    @FunctionalInterface
+    public interface Callback 
+    {
+        void onResult(boolean choice);
+    }
+
+    private void onDeveloperOverride()
+    {
+        boolean developerOverrideState = developerOverride.getToggleState();
+        if (developerOverrideState)
+        {
+            //display warning popup
+            showWarningPopup(R.string.developer_override_warning, result -> {
+                viewModel.toggleDeveloperOverride(result);
+                developerOverride.setToggleState(result);
+            });
+        }
+        else
+        {
+            viewModel.toggleDeveloperOverride(developerOverride.getToggleState());
+        }
+    }
+
+    private void showWarningPopup(int message, Callback callback)
+    {
+        AWalletAlertDialog dialog = new AWalletAlertDialog(this);
+        dialog.setIcon(AWalletAlertDialog.WARNING);
+        dialog.setTitle(R.string.warning);
+        dialog.setMessage(message);
+        dialog.setButtonText(R.string.i_accept);
+        dialog.setButtonListener(v -> {
+            callback.onResult(true);
+            dialog.dismiss();
+        });
+        dialog.setSecondaryButtonText(R.string.action_cancel);
+        dialog.setSecondaryButtonListener(v -> {
+            callback.onResult(false);
+            dialog.dismiss();
+        });
+        dialog.show();
     }
 
     private void onFullScreenClicked()
@@ -156,22 +211,25 @@ public class AdvancedSettingsActivity extends BaseActivity
         viewModel.toggle1559Transactions(eip1559Transactions.getToggleState());
     }
 
+    private void onUseTokenScriptViewer()
+    {
+        viewModel.toggleUseViewer(tokenScriptViewer.getToggleState());
+    }
+
     private void addSettingsToLayout()
     {
         LinearLayout advancedSettingsLayout = findViewById(R.id.layout);
         advancedSettingsLayout.addView(nodeStatus);
         advancedSettingsLayout.addView(console);
         advancedSettingsLayout.addView(clearBrowserCache);
-
-        if (!checkWritePermission() && EthereumNetworkRepository.extraChains() == null)
-            advancedSettingsLayout.addView(tokenScript);
-
         advancedSettingsLayout.addView(tokenScriptManagement);
         advancedSettingsLayout.addView(fullScreenSettings);
         advancedSettingsLayout.addView(refreshTokenDatabase);
         advancedSettingsLayout.addView(eip1559Transactions);
+        advancedSettingsLayout.addView(tokenScriptViewer);
         advancedSettingsLayout.addView(analytics);
         advancedSettingsLayout.addView(crashReporting);
+        advancedSettingsLayout.addView(developerOverride);
     }
 
     private void onNodeStatusClicked()
@@ -186,21 +244,26 @@ public class AdvancedSettingsActivity extends BaseActivity
 
     private void onClearBrowserCacheClicked()
     {
-        WebView webView = new WebView(this);
-        webView.clearCache(true);
-        viewModel.blankFilterSettings();
-
         Single.fromCallable(() ->
-            {
-                Glide.get(this).clearDiskCache();
-                return 1;
-            }).subscribeOn(Schedulers.io())
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe(v ->
-            {
-                Toast.makeText(this, getString(R.string.toast_browser_cache_cleared), Toast.LENGTH_SHORT).show();
-                finish();
-            }).isDisposed();
+                {
+                    WebView webView = new WebView(this);
+                    webView.clearCache(true);
+                    webView.clearFormData();
+                    webView.clearHistory();
+                    webView.clearSslPreferences();
+                    CookieManager cookieManager = CookieManager.getInstance();
+                    cookieManager.removeAllCookies(null);
+                    WebStorage.getInstance().deleteAllData();
+                    viewModel.blankFilterSettings();
+                    Glide.get(this).clearDiskCache();
+                    return 1;
+                }).subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(v ->
+                {
+                    Toast.makeText(this, getString(R.string.toast_browser_cache_cleared), Toast.LENGTH_SHORT).show();
+                    finish();
+                }).isDisposed();
     }
 
     private void onReloadTokenDataClicked()
@@ -220,9 +283,9 @@ public class AdvancedSettingsActivity extends BaseActivity
             viewModel.stopChainActivity();
             showWaitDialog();
             clearTokenCache = viewModel.resetTokenData()
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(this::showResetResult);
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(this::showResetResult);
 
             viewModel.blankFilterSettings();
         });
@@ -264,11 +327,6 @@ public class AdvancedSettingsActivity extends BaseActivity
         }
     }
 
-    private void onTokenScriptClicked()
-    {
-        showXMLOverrideDialog();
-    }
-
     private void onTokenScriptManagementClicked()
     {
         Intent intent = new Intent(this, TokenScriptManagementActivity.class);
@@ -287,40 +345,6 @@ public class AdvancedSettingsActivity extends BaseActivity
         startActivity(intent);
     }
 
-    private void showXMLOverrideDialog()
-    {
-        AWalletConfirmationDialog cDialog = new AWalletConfirmationDialog(this);
-        cDialog.setTitle(R.string.enable_xml_override_dir);
-        cDialog.setSmallText(R.string.explain_xml_override);
-        cDialog.setMediumText(R.string.ask_user_about_xml_override);
-        cDialog.setPrimaryButtonText(R.string.dialog_ok);
-        cDialog.setPrimaryButtonListener(v ->
-        {
-            //ask for OS permission and write directory
-            askWritePermission();
-            cDialog.dismiss();
-        });
-        cDialog.setSecondaryButtonText(R.string.dialog_cancel_back);
-        cDialog.setSecondaryButtonListener(v ->
-        {
-            cDialog.dismiss();
-        });
-        cDialog.show();
-    }
-
-    private void askWritePermission()
-    {
-        final String[] permissions = new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE};
-        Timber.w("Folder write permission is not granted. Requesting permission");
-        ActivityCompat.requestPermissions(this, permissions, HomeActivity.RC_ASSET_EXTERNAL_WRITE_PERM);
-    }
-
-    private boolean checkWritePermission()
-    {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            == PackageManager.PERMISSION_GRANTED;
-    }
-
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
     {
@@ -333,8 +357,6 @@ public class AdvancedSettingsActivity extends BaseActivity
                     LinearLayout advancedSettingsLayout = findViewById(R.id.layout);
                     advancedSettingsLayout.removeView(tokenScript);
                     showAlphaWalletDirectoryConfirmation();
-                    //need to set up the listener
-                    viewModel.startFileListeners();
                 }
                 break;
         }

@@ -66,20 +66,25 @@ public class TokenDefinition
     public final Map<String, ContractInfo> contracts = new HashMap<>();
     public final Map<String, AttestationDefinition> attestations = new HashMap<>();
     public final Map<String, TSAction> actions = new HashMap<>();
-    private Map<String, String> labels = new HashMap<>(); // store plural etc for token name
+    private final Map<String, String> labels = new HashMap<>(); // store plural etc for token name
     private final Map<String, NamedType> namedTypeLookup = new HashMap<>(); //used to protect against name collision
     private final TSTokenViewHolder tokenViews = new TSTokenViewHolder();
     private final Map<String, TSSelection> selections = new HashMap<>();
     private final Map<String, TSActivityView> activityCards = new HashMap<>();
-    private final Map<String, AttnElement> structs = new HashMap<>();
+    private final Map<String, Element> viewContent = new HashMap<>();
 
     public String nameSpace;
     public TokenscriptContext context;
     public String holdingToken = null;
     private int actionCount;
+    private TSOrigins defaultOrigin = null;
 
-    public static final String TOKENSCRIPT_CURRENT_SCHEMA = "2020/06";
+    public static final String TOKENSCRIPT_MINIMUM_SCHEMA = "2020/06";
+    public static final String TOKENSCRIPT_CURRENT_SCHEMA = "2024/01";
+    public static final String TOKENSCRIPT_ADDRESS = "{TS_ADDRESS}";
+    public static final String TOKENSCRIPT_CHAIN = "{TS_CHAIN}";
     public static final String TOKENSCRIPT_REPO_SERVER = "https://repo.tokenscript.org/";
+    public static final String TOKENSCRIPT_STORE_SERVER = "https://store-backend.smartlayer.network/tokenscript/" + TOKENSCRIPT_ADDRESS + "/chain/" + TOKENSCRIPT_CHAIN + "/script-uri";
     public static final String TOKENSCRIPT_NAMESPACE = "http://tokenscript.org/" + TOKENSCRIPT_CURRENT_SCHEMA + "/tokenscript";
 
     private static final String ATTESTATION = "http://attestation.id/ns/tbml";
@@ -267,6 +272,96 @@ public class TokenDefinition
         return false;
     }
 
+    //If there's no tokenId input in the call use tokenId 0
+    public BigInteger useZeroForTokenIdAgnostic(String attributeName, BigInteger tokenId)
+    {
+        Attribute attr = attributes.get(attributeName);
+
+        if (!attr.usesTokenId())
+        {
+            return BigInteger.ZERO;
+        }
+        else
+        {
+            return tokenId;
+        }
+    }
+
+    public List<String> getAttestationIdFields()
+    {
+        if (attestations.size() > 0)
+        {
+            return getAttestation().replacementFieldIds;
+        }
+        else
+        {
+            return null;
+        }
+    }
+
+    public List<String> getAttestationCollectionKeys()
+    {
+        if (attestations.size() > 0)
+        {
+            return getAttestation().collectionKeys;
+        }
+        else
+        {
+            return null;
+        }
+    }
+
+    public String getAttestationSchemaUID()
+    {
+        if (getAttestation() != null)
+        {
+            return getAttestation().schemaUID;
+        }
+        else
+        {
+            return "";
+        }
+    }
+
+    public byte[] getAttestationCollectionPreHash()
+    {
+        if (getAttestation() != null)
+        {
+            return getAttestation().getCollectionIdPreHash();
+        }
+        else
+        {
+            return null;
+        }
+    }
+
+    public boolean matchCollection(String attestationCollectionId)
+    {
+        if (getAttestation() != null)
+        {
+            return getAttestation().matchCollection(attestationCollectionId);
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    public void addLocalAttr(Attribute attr)
+    {
+        tokenViews.localAttributeTypes.put(attr.name, attr); //TODO: Refactor as it appears this doesn't respect scope
+    }
+
+    public void addGlobalStyle(Element element)
+    {
+        tokenViews.globalStyle = getHTMLContent(element); //TODO: Refactor this as it appears global style is located elsewhere. This may have been deprecated
+    }
+
+    public boolean isChanged()
+    {
+        return (nameSpace != null && !nameSpace.equals(UNCHANGED_SCRIPT) && !nameSpace.equals(NO_SCRIPT));
+    }
+
     public enum Syntax {
         DirectoryString, IA5String, Integer, GeneralizedTime,
         Boolean, BitString, CountryString, JPEG, NumericString
@@ -282,9 +377,9 @@ public class TokenDefinition
             name = (Element) nList.item(i);
             String langAttr = getLocalisationLang(name);
             if (langAttr.equals(locale.getLanguage())) {
-                return name.getTextContent();
+                return name.getTextContent().strip();
             }
-            else if (langAttr.equals("en")) nonLocalised = name.getTextContent();
+            else if (langAttr.equals("en")) nonLocalised = name.getTextContent().strip();
         }
 
         if (nonLocalised != null) return nonLocalised;
@@ -292,7 +387,7 @@ public class TokenDefinition
         {
             name = (Element) nList.item(0);
             // TODO: catch the indice out of bound exception and throw it again suggesting dev to check schema
-            if (name != null) return name.getTextContent();
+            if (name != null) return name.getTextContent().strip();
             else return null;
         }
     }
@@ -328,16 +423,22 @@ public class TokenDefinition
                 String langAttr = getLocalisationLang((Element)n);
                 if (langAttr.equals(locale.getLanguage()))
                 {
-                    return n.getTextContent();
+                    return processText(n.getTextContent()).strip();
                 }
                 else if (nonLocalised == null && (langAttr.equals("") || langAttr.equals("en")))
                 {
-                    nonLocalised = n.getTextContent();
+                    nonLocalised = n.getTextContent().strip();
                 }
             }
         }
 
         return nonLocalised;
+    }
+
+    private String processText(String text)
+    {
+        //strip out whitespace and cr/lf
+        return text.strip();
     }
 
     private boolean hasAttribute(Element name, String typeAttr)
@@ -366,7 +467,7 @@ public class TokenDefinition
                 Node thisAttr = name.getAttributes().item(i);
                 if (thisAttr.getLocalName().equals("lang"))
                 {
-                    return thisAttr.getTextContent();
+                    return thisAttr.getTextContent().strip();
                 }
             }
         }
@@ -442,14 +543,15 @@ public class TokenDefinition
                 switch (element.getLocalName())
                 {
                     case "origins":
-                        TSOrigins origin = parseOrigins(element); //parseOrigins(element);
+                        TSOrigins origin = parseOrigins(element);
                         if (origin.isType(TSOriginType.Contract) || origin.isType(TSOriginType.Attestation)) holdingToken = origin.getOriginName();
+                        defaultOrigin = origin;
                         break;
                     case "contract":
                         handleAddresses(element);
                         break;
                     case "label":
-                        labels = extractLabelTag(element);
+                        labels.putAll(extractLabelTag(element));
                         break;
                     case "selection":
                         TSSelection selection = parseSelection(element);
@@ -467,13 +569,6 @@ public class TokenDefinition
                         if (attr.bitmask != null || attr.function != null)
                         {
                             attributes.put(attr.name, attr);
-                        }
-                        break;
-                    case "struct":
-                        AttnElement struct = parseAttestationStruct(element);
-                        if (struct.type != null)
-                        {
-                            structs.put(struct.name, struct);
                         }
                         break;
                     case "attestation":
@@ -521,7 +616,7 @@ public class TokenDefinition
                             break;
                         case "denial":
                             Node denialNode = getLocalisedNode(element, "string");
-                            selection.denialMessage = (denialNode != null) ? denialNode.getTextContent() : null;
+                            selection.denialMessage = (denialNode != null) ? denialNode.getTextContent().strip() : null;
                             break;
                     }
                 }
@@ -541,20 +636,31 @@ public class TokenDefinition
                 switch (card.getLocalName())
                 {
                     case "token":
-                        processTokenCardElements(card);
+                    case "token-card":
+                        TSTokenView tv = new TSTokenView(card, this);
+                        tokenViews.views.put(tv.getLabel(), tv);
                         break;
                     case "card":
                         extractCard(card);
+                        break;
+                    case "viewContent":
+                        this.viewContent.put(card.getAttribute("name"), card);
                         break;
                 }
             }
         }
     }
 
+    public Element getViewContent(String name)
+    {
+        return this.viewContent.get(name);
+    }
+
     private TSActivityView processActivityView(Element card) throws Exception
     {
         NodeList ll = card.getChildNodes();
         TSActivityView activityView = null;
+        String useName = "";
 
         for (int j = 0; j < ll.getLength(); j++)
         {
@@ -567,12 +673,25 @@ public class TokenDefinition
             {
                 case "origins":
                     TSOrigins origins = parseOrigins(element);
-                    if (origins.isType(TSOriginType.Event)) activityView = new TSActivityView(origins);
+                    if (origins.isType(TSOriginType.Event))
+                    {
+                        activityView = new TSActivityView(origins);
+                    }
                     break;
                 case "view": //TODO: Localisation
                 case "item-view":
-                    if (activityView == null) throw new SAXException("Activity card declared without origins tag");
-                    activityView.addView(node.getLocalName(), new TSTokenView(element));
+                    if (activityView == null)
+                    {
+                        activityView = new TSActivityView(defaultOrigin);
+                    }
+                    if (useName.isEmpty())
+                    {
+                        useName = node.getLocalName();
+                    }
+                    activityView.addView(useName, new TSTokenView(element, this));
+                    break;
+                case "label":
+                    useName = getLocalisedString(element);
                     break;
                 default:
                     throw new SAXException("Unknown tag <" + node.getLocalName() + "> tag in tokens");
@@ -580,42 +699,6 @@ public class TokenDefinition
         }
 
         return activityView;
-    }
-
-    private void processTokenCardElements(Element card) throws Exception
-    {
-        NodeList ll = card.getChildNodes();
-
-        for (int j = 0; j < ll.getLength(); j++)
-        {
-            Node node = ll.item(j);
-            if (node.getNodeType() != ELEMENT_NODE)
-                continue;
-
-            Element element = (Element) node;
-            switch (node.getLocalName())
-            {
-                case "attribute":
-                    Attribute attr = new Attribute(element, this);
-                    tokenViews.localAttributeTypes.put(attr.name, attr);
-                    break;
-                case "view": //TODO: Localisation
-                case "item-view":
-                    TSTokenView v = new TSTokenView(element);
-                    tokenViews.views.put(node.getLocalName(), v);
-                    break;
-                case "view-iconified":
-                    throw new SAXException("Deprecated <view-iconified> used in <ts:token>. Replace with <item-view>");
-                case "style":
-                    tokenViews.globalStyle = getHTMLContent(element);
-                    break;
-                case "script":
-                    //misplaced script tag
-                    throw new SAXException("Misplaced <script> tag in <ts:token>");
-                default:
-                    throw new SAXException("Unknown tag <" + node.getLocalName() + "> tag in tokens");
-            }
-        }
     }
 
     private String getLocalisedEntry(Map<String, String> attrEntry)
@@ -698,6 +781,34 @@ public class TokenDefinition
         }
     }
 
+    public boolean isSchemaLessThanMinimum()
+    {
+        if (nameSpace == null)
+        {
+            return true;
+        }
+
+        int dateIndex = nameSpace.indexOf(TOKENSCRIPT_BASE_URL) + TOKENSCRIPT_BASE_URL.length();
+        int lastSeparator = nameSpace.lastIndexOf("/");
+        if ((lastSeparator - dateIndex) == 7)
+        {
+            try
+            {
+                DateFormat format = new SimpleDateFormat("yyyy/MM", Locale.ENGLISH);
+                Date thisDate = format.parse(nameSpace.substring(dateIndex, lastSeparator));
+                Date schemaDate = format.parse(TOKENSCRIPT_MINIMUM_SCHEMA);
+
+                return thisDate.before(schemaDate);
+            }
+            catch (Exception e)
+            {
+                return true;
+            }
+        }
+
+        return true;
+    }
+
     private void extractCard(Element card) throws Exception
     {
         TSAction action;
@@ -706,16 +817,21 @@ public class TokenDefinition
         switch (type)
         {
             case "token":
-                processTokenCardElements(card);
+                TSTokenView tv = new TSTokenView(card, this);
+                tokenViews.views.put(tv.getLabel(), tv);
                 break;
             case "action":
+            case "activity":
                 action = handleAction(card);
                 actions.put(action.name, action);
                 setModifier(action, card);
                 break;
-            case "activity":
+            /*case "activity":
                 activity = processActivityView(card);
                 activityCards.put(card.getAttribute("name"), activity);
+                break;*/
+            case "onboarding":
+                // do not parse onboarding cards
                 break;
             default:
                 throw new SAXException("Unexpected card type found: " + type);
@@ -738,6 +854,16 @@ public class TokenDefinition
                 break;
             default:
                 throw new SAXException("Unexpected modifier found: " + modifier);
+        }
+
+        String type = card.getAttribute("type");
+        switch (type)
+        {
+            case "activity":
+                action.modifier = ActionModifier.ACTIVITY;
+                break;
+            default:
+                break;
         }
     }
 
@@ -779,7 +905,7 @@ public class TokenDefinition
                 case "selection":
                     throw new SAXException("<ts:selection> tag must be in main scope (eg same as <ts:origins>)");
                 case "view": //localised?
-                    tsAction.view = new TSTokenView(element);
+                    tsAction.view = new TSTokenView(element, this);
                     break;
                 case "style":
                     tsAction.style = getHTMLContent(element);
@@ -878,7 +1004,7 @@ public class TokenDefinition
         NodeList nList;
         nList = xml.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", "KeyName");
         if (nList.getLength() > 0) {
-            this.keyName = nList.item(0).getTextContent();
+            this.keyName = nList.item(0).getTextContent().strip();
         }
         return; // even if the document is signed, often it doesn't have KeyName
     }
@@ -913,8 +1039,8 @@ public class TokenDefinition
                 case "key":
                     attn.handleKey(attnElement);
                     break;
-                case "eventId":
-                    attn.handleEventId(attnElement);
+                case "collectionFields":
+                    attn.handleCollectionFields(attnElement);
                     break;
                 case "idFields":
                     attn.handleReplacementField(attnElement);
@@ -924,7 +1050,7 @@ public class TokenDefinition
                     //attn.members.add(parseAttestationStruct(attnElement));
                     //attestation.add(parseAttestationStruct(attnElement));
                     break;
-                case "origins":
+                case "origins": //TODO: Recode this
                     //attn.origin = parseOrigins(attnElement);
                     //advance to function
                     Element functionElement = getFirstChildElement(attnElement);
@@ -969,7 +1095,7 @@ public class TokenDefinition
                 switch (node.getLocalName())
                 {
                     case "name":
-                        name = node.getTextContent();
+                        name = node.getTextContent().strip();
                         break;
                     default:
                         break;
@@ -1292,7 +1418,7 @@ public class TokenDefinition
         {
             Element element = (Element) node;
             String quantity = element.getAttribute("quantity");
-            String name = element.getTextContent();
+            String name = element.getTextContent().strip();
             if (quantity != null && name != null)
             {
                 localNames.put(quantity, name);
@@ -1423,7 +1549,7 @@ public class TokenDefinition
         String networkStr = addressElement.getAttribute("network");
         long network = 1;
         if (networkStr != null) network = Long.parseLong(networkStr);
-        String address = addressElement.getTextContent().toLowerCase();
+        String address = addressElement.getTextContent().toLowerCase().strip();
         List<String> addresses = info.addresses.get(network);
         if (addresses == null)
         {
@@ -1461,7 +1587,7 @@ public class TokenDefinition
                     break;
                 case Node.ENTITY_REFERENCE_NODE:
                     //load in external content
-                    String entityRef = child.getTextContent();
+                    String entityRef = child.getTextContent().strip();
                     EntityReference ref = (EntityReference) child;
 
                     System.out.println(entityRef);
@@ -1469,7 +1595,7 @@ public class TokenDefinition
                 default:
                     if (child != null && child.getTextContent() != null)
                     {
-                        String parsed = child.getTextContent().replace("\u2019", "&#x2019;");
+                        String parsed = child.getTextContent().replace("\u2019", "&#x2019;").strip();
                         sb.append(parsed);
                     }
                     break;
@@ -1490,7 +1616,7 @@ public class TokenDefinition
                 sb.append(" ");
                 sb.append(node.getLocalName());
                 sb.append("=\"");
-                sb.append(node.getTextContent());
+                sb.append(node.getTextContent().strip());
                 sb.append("\"");
             }
         }
@@ -1560,7 +1686,7 @@ public class TokenDefinition
     {
         TokenscriptElement tse = new TokenscriptElement();
         tse.ref = input.getAttribute("ref");
-        tse.value = input.getTextContent();
+        tse.value = input.getTextContent().strip();
         tse.localRef = input.getAttribute("local-ref");
         return tse;
 }
@@ -1617,8 +1743,8 @@ public class TokenDefinition
     {
         TSTokenView view = tokenViews.views.get("view");
 
-        if (tag.equals("view")) return view.tokenView;
-        else if (tag.equals("style")) return view.style;
+        if (tag.equals("view")) return view.getTokenView();
+        else if (tag.equals("style")) return view.getStyle();
         else return null;
     }
 
@@ -1644,6 +1770,11 @@ public class TokenDefinition
     public String getTokenView(String viewTag)
     {
         return tokenViews.getView(viewTag);
+    }
+
+    public TSTokenView getTSTokenView(String name)
+    {
+        return tokenViews.getTSView(name);
     }
 
     public String getTokenViewStyle(String viewTag)

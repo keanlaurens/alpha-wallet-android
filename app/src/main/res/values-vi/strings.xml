@@ -338,6 +338,9 @@
     <string name="signer_address">Địa chỉ</string>
     <string name="requester_url">Người yêu cầu</string>
     <string name="dialog_title_sign_message">Sign Message</string>
+    <string name="dialog_title_sign_message_sheet">⚠ Sign Message ⚠</string>
+    <string name="sign_message_could_be_a_scam">Nguy hiểm: Kiểm tra trước khi ký</string>
+    <string name="sign_message_could_be_a_scam2">Đặc biệt, bạn có thể gặp nguy cơ mất mã thông báo nếu yêu cầu này đến từ \'airdrop\'. Tin nhắn ký hiệu chủ yếu được sử dụng bởi những kẻ lừa đảo. Thực hiện tìm kiếm trên web cho trang web này và sử dụng \'scam\'.</string>
     <string name="dialog_title_sign_personal_message">Sign Personal Message</string>
     <string name="dialog_title_sign_typed_message">Sign Typed Message</string>
     <string name="dialog_reject">Từ chối</string>
@@ -385,7 +388,6 @@
     <string name="is_address">Just scanned an Ethereum address. Do you want to try to load this as a Token?</string>
     <string name="dialog_load_as_contract">Nạp Token</string>
     <string name="blockchain">%1$s Blockchain</string>
-    <string name="telegram">Telegram (Hỗ trợ khách hàng)</string>
     <string name="transfer_request">Yêu cầu chuyển</string>
     <string name="token_transfer_request">Token transfer request: %1$s</string>
     <string name="generate_payment_request">Tạo Yêu cầu Thanh toán</string>
@@ -693,7 +695,7 @@
     <string name="gas_price_widget">Gas Price: %1$s</string>
     <string name="gas_max">Max Fee</string>
     <string name="priority_fee">Priority Fee</string>
-    <string name="base_fee">Base Fee: %1$s</string>
+    <string name="base_fee">Base Fee</string>
     <string name="gas_message">Fees are based on current Ethereum blockchain network load. They are not up to AlphaWallet. AlphaWallet uses the %1$s live oracle and updates the gas prices every 15 seconds.</string>
     <string name="set_your_speed">Set Your Own</string>
     <string name="nonce_optional">Nonce (optional)</string>
@@ -729,7 +731,7 @@
     <string name="disconnect">Ngắt kết nối</string>
     <string name="keep_connect">Giữ kết nối</string>
     <string name="beware_of_scammers">Beware of scammers!\nDon\'t share seed phrase.</string>
-    <string name="alphawallet_never_ask">AlphaWallet sẽ KHÔNG BAO GIỜ hỏi về cụm từ bí mật của bạn (đặc biệt là trên Telegram).</string>
+    <string name="alphawallet_never_ask">AlphaWallet KHÔNG BAO GIỜ hỏi về cụm từ hạt giống của bạn (và chúng tôi chỉ trả lời DM, không bao giờ DM trước).</string>
     <string name="your_seed_phrase">Cụm từ bí mật của bạn (không chia sẻ với bất kỳ ai)</string>
     <string name="hide_seed_text">OK, ẩn cụm từ bí mật</string>
     <string name="ens_not_match_wallet">Tên ENS không khớp với địa chỉ ví</string>
@@ -884,7 +886,6 @@
     <string name="label_slippage">Slippage</string>
     <string name="action_open_settings">Open Settings</string>
     <string name="message_no_connections_found">No connections found for this chain.</string>
-    <string name="label_fees">Fees</string>
     <string name="label_current_price">Current Price</string>
     <string name="label_minimum_received">Minimum Received</string>
     <string name="label_balance">Balance: </string>
@@ -927,8 +928,8 @@
     <string name="key_diagnostic">Key Diagnostic</string>
     <string name="key_found">Key found</string>
     <string name="key_not_found">Unable to find Key</string>
-    <string name="seed_phrase_public_key">Seed Phrase detected public key: %1$s</string>
-    <string name="keystore_public_key">Decoded Keystore public key: %1$s</string>
+    <string name="seed_phrase_public_key">Seed Phrase detected public key</string>
+    <string name="keystore_public_key">Decoded Keystore public key</string>
     <string name="enclave_locked">Locked</string>
     <string name="key_type_in_database">Key type in Database</string>
     <string name="key_entry_in_secure_enclave">Key Entry in Secure Enclave</string>
@@ -996,4 +997,21 @@
     <string name="minted">Minted</string>
     <string name="valid_from">Có hiệu lực từ ngày</string>
     <string name="valid_until">Có hiệu lực</string>
+    <string name="attestation_imported">Chứng thực được nhập</string>
+    <string name="attestation_import_failed">Nhập chứng thực không thành công</string>
+    <string name="key_address">Địa chỉ nhà phát hành</string>
+    <string name="no_connection">Không có kết nối</string>
+    <string name="imported_smart_pass">SmartPass nhập khẩu</string>
+    <string name="smartpass_imported">SmartPass đã được nhập. Thẻ của bạn nên được nâng cấp.</string>
+    <string name="no_connection_to_smart_layer">Không có kết nối với mạng SmartLayer - hãy thử nhập lại SmartPass của bạn sau.</string>
+    <string name="session_not_authorised">Phiên này không được phép ký tin nhắn trên %s tuy nhiên bạn có thể bỏ qua hạn chế này để ký. Với tin nhắn đánh máy không có nguy hiểm.</string>
+    <string name="override">Ghi đè</string>
+    <string name="developer_override">Ghi đè Nhà phát triển</string>
+    <string name="override_warning_text">Bạn có thể sắp vô tình ký một giao dịch, điều này có thể khiến tiền của bạn bị rỗng. Bạn có thể muốn ký mã byte với tư cách là nhà phát triển và bạn có thể ghi đè cảnh báo này nếu bạn đặt chế độ nhà phát triển trong cài đặt Nâng cao.</string>
+    <string name="constructor">Constructor</string>
+    <string name="use_tokenscript_viewer">Trình xem TokenScript</string>
+    <string name="not_recommended_to_visit">URL này không nằm trong danh sách trắng. Bạn vẫn có thể truy cập bằng cách thay đổi tùy chọn bảo vệ trong cài đặt, nhưng không được khuyến khích. Bạn có thể sắp mất tiền, đặc biệt nếu đó là khoản đầu tư vào khai thác tiền điện tử. Có rất nhiều trang web đầu tư tiền điện tử được quản lý.</string>
+    <string name="developer_override_warning">Cảnh báo: Bạn sắp tắt chế độ bảo vệ tiêu chuẩn. Điều này giúp bạn tránh bị lừa đảo. Chỉ sử dụng chế độ nhà phát triển nếu bạn đang thử nghiệm dapp của mình hoặc nếu bạn chắc chắn 100\% rằng trang web an toàn. Hãy nhớ rằng: nếu ai đó bảo bạn bật cài đặt này, bạn gần như chắc chắn sẽ mất tiền mã hóa của mình.</string>
+    <string name="warning">Cảnh báo</string>
+    <string name="i_accept">Tôi chấp nhận rủi ro</string>
 </resources>

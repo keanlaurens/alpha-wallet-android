@@ -19,7 +19,6 @@
     <color name="goerli">#BBAE9A</color>
     <color name="binance_test">#ffca2f</color>
     <color name="binance_main">#f3ba2f</color>
-    <color name="heco_test">#5F9FFF</color>
     <color name="heco_main">#3F7FFF</color>
     <color name="avalanche_main">#FF2938</color>
     <color name="avalanche_test">#92A6B8</color>
@@ -35,7 +34,7 @@
     <color name="arbitrum_test">#40678c</color>
     <color name="palm_main">#83488c</color>
     <color name="palm_test">#93589c</color>
-    <color name="klaytn_main">#FE3300</color>
+    <color name="klaytn_main">#9FD009</color>
     <color name="klaytn_test">#414597</color>
     <color name="iotex_mainnet">#00D4D5</color>
     <color name="aurora_mainnet">#6BBE47</color>
@@ -45,4 +44,5 @@
     <color name="sepolia">#67b1d4</color>
     <color name="okx">#000000</color>
     <color name="rootstock">#000000</color>
+    <color name="mint_chain">#30BF54</color>
 </resources>

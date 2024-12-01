@@ -1,6 +1,5 @@
 package com.alphawallet.app.util;
 
-import static com.alphawallet.app.service.AssetDefinitionService.getEASContract;
 import static com.alphawallet.ethereum.EthereumNetworkBase.AVALANCHE_ID;
 import static com.alphawallet.ethereum.EthereumNetworkBase.BINANCE_MAIN_ID;
 import static com.alphawallet.ethereum.EthereumNetworkBase.CLASSIC_ID;
@@ -15,36 +14,47 @@ import android.content.ContextWrapper;
 import android.content.pm.InstallSourceInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Build;
+import android.text.Spannable;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
+import android.text.style.ForegroundColorSpan;
 import android.text.style.StyleSpan;
 import android.util.Base64;
 import android.util.TypedValue;
 import android.webkit.URLUtil;
 
 import androidx.annotation.ColorInt;
+import androidx.annotation.Nullable;
 import androidx.annotation.RawRes;
 import androidx.fragment.app.FragmentActivity;
 
+import com.alphawallet.app.BuildConfig;
 import com.alphawallet.app.C;
 import com.alphawallet.app.R;
 import com.alphawallet.app.entity.EasAttestation;
 import com.alphawallet.app.entity.tokens.Token;
-import com.alphawallet.app.entity.tokens.TokenInfo;
 import com.alphawallet.app.util.pattern.Patterns;
-import com.alphawallet.app.web3j.StructuredDataEncoder;
 import com.alphawallet.token.entity.ProviderTypedData;
 import com.alphawallet.token.entity.Signable;
-import com.google.zxing.client.android.Intents;
-import com.journeyapps.barcodescanner.ScanOptions;
 import com.google.gson.Gson;
+import com.google.zxing.client.android.Intents;
+import com.google.zxing.common.StringUtils;
+import com.journeyapps.barcodescanner.ScanOptions;
 
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONObject;
+import org.web3j.abi.FunctionReturnDecoder;
+import org.web3j.abi.TypeReference;
+import org.web3j.abi.datatypes.DynamicArray;
+import org.web3j.abi.datatypes.Type;
+import org.web3j.abi.datatypes.Utf8String;
 import org.web3j.crypto.Hash;
 import org.web3j.crypto.Keys;
+import org.web3j.crypto.StructuredDataEncoder;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.rlp.RlpEncoder;
 import org.web3j.rlp.RlpList;
@@ -56,7 +66,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
@@ -67,6 +76,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -85,9 +95,12 @@ public class Utils
     private static final String CHAIN_REPO_ADDRESS_TOKEN = "[CHAIN]";
     private static final String TOKEN_LOGO = "/logo.png";
     public static final String ALPHAWALLET_REPO_NAME = "https://raw.githubusercontent.com/alphawallet/iconassets/master/";
-    private static final String TRUST_ICON_REPO_BASE = "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/";
+    public static final String TRUST_ICON_REPO_BASE = "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/";
     private static final String TRUST_ICON_REPO = TRUST_ICON_REPO_BASE + CHAIN_REPO_ADDRESS_TOKEN + "/assets/" + ICON_REPO_ADDRESS_TOKEN + TOKEN_LOGO;
     private static final String ALPHAWALLET_ICON_REPO = ALPHAWALLET_REPO_NAME + ICON_REPO_ADDRESS_TOKEN + TOKEN_LOGO;
+    private static final String ATTESTATION_PREFIX = "#attestation=";
+    private static final String SMART_PASS_PREFIX = "ticket=";
+    private static final String TOKEN_ID_CODE = "{id}";
 
     public static int dp2px(Context context, int dp)
     {
@@ -101,7 +114,7 @@ public class Utils
 
     public static String formatUrl(String url)
     {
-        if (URLUtil.isHttpsUrl(url) || URLUtil.isHttpUrl(url))
+        if (URLUtil.isHttpsUrl(url) || URLUtil.isHttpUrl(url) || isWalletPrefix(url))
         {
             return url;
         }
@@ -116,6 +129,16 @@ public class Utils
                 return C.INTERNET_SEARCH_PREFIX + url;
             }
         }
+    }
+
+    public static boolean isWalletPrefix(String url)
+    {
+        return url.startsWith(C.DAPP_PREFIX_TELEPHONE) ||
+                url.startsWith(C.DAPP_PREFIX_MAILTO) ||
+                url.startsWith(C.DAPP_PREFIX_ALPHAWALLET) ||
+                url.startsWith(C.DAPP_PREFIX_MAPS) ||
+                url.startsWith(C.DAPP_PREFIX_WALLETCONNECT) ||
+                url.startsWith(C.DAPP_PREFIX_AWALLET);
     }
 
     public static boolean isValidUrl(String url)
@@ -170,10 +193,10 @@ public class Utils
     {
         if (TextUtils.isEmpty(text)) return "";
         text = text.trim();
-        int index;
-        for (index = 0; index < text.length(); index++)
+        int index = 1;
+        for (; index < text.length(); index++)
         {
-            if (!Character.isLetterOrDigit(text.charAt(index))) break;
+            if ((!Character.isLetterOrDigit(text.charAt(index)) && index > 4) || Character.isWhitespace(text.charAt(index))) break;
         }
 
         return text.substring(0, index).trim();
@@ -186,7 +209,7 @@ public class Utils
         String firstWord = getFirstWord(text);
         if (!TextUtils.isEmpty(firstWord))
         {
-            return firstWord.substring(0, Math.min(firstWord.length(), 4)).toUpperCase();
+            return firstWord.substring(0, Math.min(firstWord.length(), 5));
         }
         else
         {
@@ -200,7 +223,7 @@ public class Utils
         String firstWord = getFirstWord(text);
         if (!TextUtils.isEmpty(firstWord))
         {
-            return firstWord.substring(0, Math.min(firstWord.length(), 5)).toUpperCase();
+            return firstWord.substring(0, Math.min(firstWord.length(), C.SHORT_SYMBOL_LENGTH));
         }
         else
         {
@@ -220,7 +243,7 @@ public class Utils
         {
             default:
             case SIGN_MESSAGE:
-                return R.string.dialog_title_sign_message;
+                return R.string.dialog_title_sign_message_sheet; //warn user this is unsafe
             case SIGN_PERSONAL_MESSAGE:
                 return R.string.dialog_title_sign_personal_message;
             case SIGN_TYPED_DATA:
@@ -228,6 +251,20 @@ public class Utils
             case SIGN_TYPED_DATA_V4:
                 return R.string.dialog_title_sign_typed_message;
         }
+    }
+
+    public static CharSequence getSignMessageTitle(String message)
+    {
+        //produce readable text to display in the signing prompt
+        StyledStringBuilder sb = new StyledStringBuilder();
+        sb.startStyleGroup();
+        sb.append(message);
+        int i = message.length();
+        sb.setSpan(new ForegroundColorSpan(Color.RED), 0, 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.setSpan(new ForegroundColorSpan(Color.RED), i-1, i, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        sb.applyStyles();
+
+        return sb;
     }
 
     public static CharSequence formatTypedMessage(ProviderTypedData[] rawData)
@@ -280,7 +317,7 @@ public class Utils
         return sb;
     }
 
-    public static CharSequence createFormattedValue(Context ctx, String operationName, Token token)
+    public static CharSequence createFormattedValue(String operationName, Token token)
     {
         String symbol = token != null ? token.getShortSymbol() : "";
         boolean needsBreak = false;
@@ -581,6 +618,43 @@ public class Utils
         {
             return "0x";
         }
+    }
+
+    public static String splitAddress(String address, int lines)
+    {
+        address = Keys.toChecksumAddress(address);
+        return splitHex(address, lines);
+    }
+
+    public static String splitHex(String hex, int lines)
+    {
+        int split = hex.length()/lines;
+        StringBuilder sb = new StringBuilder();
+        int index = 0;
+        int addend = 0;
+        for (int i = 0; i < (lines-1); i++)
+        {
+            addend = 0;
+            if (index > 0)
+            {
+                sb.append(" ");
+            }
+            else
+            {
+                if (lines%2 != 0)
+                {
+                    addend = 1;
+                }
+            }
+            sb.append(hex.substring(0, split + addend));
+            index += split;
+            hex = hex.substring(split + addend);
+        }
+        sb.append(" ");
+        sb.append(hex);
+        //String front = hex.substring(0, split);
+        //String back = hex.substring(split);
+        return sb.toString();
     }
 
     public static String formatTxHash(String txHash)
@@ -899,7 +973,7 @@ public class Utils
     private static final String IPFS_PREFIX = "ipfs://";
     private static final String IPFS_DESIGNATOR = "/ipfs/";
     public static final String IPFS_INFURA_RESOLVER = "https://alphawallet.infura-ipfs.io";
-    public static final String IPFS_IO_RESOLVER = "https://ipfs.io";
+    public static final String IPFS_MATCHER = "^Qm[1-9A-Za-z]{44}(\\/.*)?$";
 
     public static boolean isIPFS(String url)
     {
@@ -932,9 +1006,10 @@ public class Utils
         return parsed;
     }
 
-    private static boolean shouldBeIPFS(String url)
+    public static boolean shouldBeIPFS(String url)
     {
-        return url.startsWith("Qm") && url.length() == 46 && !url.contains(".") && !url.contains("/");
+        Matcher regexResult = Pattern.compile(IPFS_MATCHER).matcher(url);
+        return regexResult.find();
     }
 
     public static String loadFile(Context context, @RawRes int rawRes)
@@ -1040,6 +1115,44 @@ public class Utils
         return Keys.toChecksumAddress(Numeric.toHexString(calculatedAddressAsBytes));
     }
 
+    public static <T> List<Type> decodeDynamicArray(String output)
+    {
+        List<TypeReference<Type>> adaptive = org.web3j.abi.Utils.convert(Collections.singletonList(new TypeReference<DynamicArray<Utf8String>>() {}));
+        try
+        {
+            return FunctionReturnDecoder.decode(output, adaptive);
+        }
+        catch (Exception e)
+        {
+            // Expected
+        }
+
+        return new ArrayList<>();
+    }
+
+    public static <T> List<T> asAList(List<Type> responseValues, T convert)
+    {
+        List<T> converted = new ArrayList<>();
+        if (responseValues.isEmpty())
+        {
+            return converted;
+        }
+
+        for (Object objUri : ((DynamicArray) responseValues.get(0)).getValue())
+        {
+            try
+            {
+                converted.add((T) ((Type<?>) objUri).getValue().toString());
+            }
+            catch (ClassCastException e)
+            {
+                //
+            }
+        }
+
+        return converted;
+    }
+
     public static boolean isJson(String value)
     {
         try
@@ -1118,55 +1231,90 @@ public class Utils
         return context.getPackageName().equals("io.stormbird.wallet");
     }
 
-    /*public static boolean hasAttestation(String url)
+    //Decode heuristic:
+    //1. use Android URI parser to extract "ticket" or "attestation"
+    //2. do URL decode on the extracted string
+    //3. Base64 decode and unzip, return decoded string if any
+    //4. Try the decode step "_ -> /" and "- -> +" and try Base64 decode and unzip, return decoded string
+    //5. Try EAS format: extract tag from "ticket=" or "#attestation=" and try Base64 decode and unzip.
+    public static String parseEASAttestation(String data)
     {
-        result.functionDetail = Utils.decompress(url);
-
-        int hashIndex = url.indexOf("#attestation=");
-        if (hashIndex >= 0)
+        String inflate;
+        String attestation = attestationViaParams(data);
+        if (!TextUtils.isEmpty(attestation))
         {
-            url = url.substring(hashIndex + 13);
-            return url.length() > 10;
+            //try decode without conversion
+            inflate = wrappedInflateData(attestation);
+            if (!TextUtils.isEmpty(inflate))
+            {
+                return inflate;
+            }
         }
-        else
+
+        //now check via pulling params directly
+        attestation = extractParam(data, SMART_PASS_PREFIX);
+        inflate = wrappedInflateData(attestation);
+        if (!TextUtils.isEmpty(inflate))
         {
-            //detect a base64 attestation
-            try
-            {
-                byte[] tryBase64Data = Base64.decode(url, Base64.DEFAULT); //is this a base64 string?
-
-
-                if (tryBase64Data.length > 0 )
-                {
-                    return true;
-                }
-            }
-            catch (IllegalArgumentException e)
-            {
-                // no action, return false;
-                Timber.w(e);
-            }
-
-            return false;
+            return inflate;
         }
-    }*/
 
-    public static String getAttestationString(String url)
+        attestation = extractParam(data, ATTESTATION_PREFIX);
+        return wrappedInflateData(attestation);
+    }
+
+    public static boolean hasEASAttestation(String data)
     {
-        int hashIndex = url.indexOf("#attestation=");
+        return parseEASAttestation(data).length() > 0;
+    }
+
+    //Used to pull the raw attestation zip from the magiclink
+    public static String extractRawAttestation(String data)
+    {
+        String inflate;
+        String attestation = attestationViaParams(data);
+        if (!TextUtils.isEmpty(attestation))
+        {
+            //try decode without conversion
+            inflate = inflateData(attestation);
+            if (!TextUtils.isEmpty(inflate))
+            {
+                return attestation;
+            }
+            String decoded = attestation.replace("_", "/").replace("-", "+");
+            inflate = inflateData(decoded);
+            if (!TextUtils.isEmpty(inflate))
+            {
+                return attestation;
+            }
+        }
+
+        //now check via pulling params directly
+        attestation = extractParam(data, SMART_PASS_PREFIX);
+        inflate = inflateData(attestation);
+        if (!TextUtils.isEmpty(inflate))
+        {
+            return attestation;
+        }
+
+        return extractParam(data, ATTESTATION_PREFIX);
+    }
+
+    private static String extractParam(String url, String param)
+    {
+        int paramIndex = url.indexOf(param);
         String decoded;
         try
         {
-            if (hashIndex >= 0) //EAS style attestations have the magic link style
+            if (paramIndex >= 0) //EAS style attestations have the magic link style
             {
-                url = url.substring(hashIndex + 13);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                url = url.substring(paramIndex + param.length());
+                decoded = universalURLDecode(url);
+                //find end param if there is one
+                int endIndex = decoded.indexOf("&");
+                if (endIndex > 0)
                 {
-                    decoded = URLDecoder.decode(url, StandardCharsets.UTF_8);
-                }
-                else
-                {
-                    decoded = URLDecoder.decode(url, "UTF-8");
+                    decoded = decoded.substring(0, endIndex);
                 }
             }
             else
@@ -1183,39 +1331,62 @@ public class Utils
         return decoded;
     }
 
-    public static TokenInfo getDefaultAttestationInfo(long chainId, String collectionHash)
+    private static String attestationViaParams(String url)
     {
-        return new TokenInfo(collectionHash, "EAS Attestation", "ATTN", 0, true, chainId);
-    }
-
-    public static boolean hasAttestation(String data)
-    {
+        String decoded = "";
         try
         {
-            String inflated = inflateData(getAttestationString(data));
-            return inflated.length() > 0;
+            Uri uri = Uri.parse(url);
+            String payload = uri.getQueryParameter("ticket");
+            if (TextUtils.isEmpty(payload))
+            {
+                payload = uri.getQueryParameter("attestation");
+            }
+
+            if (TextUtils.isEmpty(payload))
+            {
+                return "";
+            }
+
+            decoded = universalURLDecode(payload);
+            Timber.d("decoded url: %s", decoded);
         }
         catch (Exception e)
         {
-            return false;
+            // Expected
         }
+        return decoded;
     }
 
-    public static String decompress(String url)
+    public static String universalURLDecode(String url)
     {
+        String decoded;
         try
         {
-            //Timber.d(toAttestationJson(inflateData(getAttestationString(url))));
-            return toAttestationJson(inflateData(getAttestationString(url)));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            {
+                decoded = URLDecoder.decode(url, StandardCharsets.UTF_8);
+            }
+            else
+            {
+                decoded = URLDecoder.decode(url, "UTF-8");
+            }
         }
         catch (Exception e)
         {
-            return null;
+            decoded = url;
         }
+
+        return decoded;
     }
 
-    private static String toAttestationJson(String jsonString)
+    public static String toAttestationJson(String jsonString)
     {
+        if (TextUtils.isEmpty(jsonString))
+        {
+            return "";
+        }
+
         // Remove the square brackets
         jsonString = jsonString.substring(1, jsonString.length() - 1);
         String[] e = jsonString.split(",");
@@ -1224,6 +1395,18 @@ public class Utils
         for (int i = 0; i < e.length; i++) {
             e[i] = e[i].trim();
             e[i] = e[i].replaceAll("\"", "");
+        }
+
+        long versionParam = 0;
+
+        if (e.length < 16 || e.length > 17)
+        {
+            return "";
+        }
+
+        if (e.length == 17)
+        {
+            versionParam = Long.parseLong(e[16]);
         }
 
         EasAttestation easAttestation =
@@ -1243,23 +1426,36 @@ public class Utils
                 e[12],
                 Boolean.parseBoolean(e[13]),
                 e[14],
-                Long.parseLong(e[15])
+                Long.parseLong(e[15]),
+                versionParam
             );
 
         return new Gson().toJson(easAttestation);
     }
 
+    private static String wrappedInflateData(String deflatedData)
+    {
+        String inflatedData = inflateData(deflatedData);
+        if (TextUtils.isEmpty(inflatedData))
+        {
+            deflatedData = deflatedData.replace("_", "/").replace("-", "+");
+            inflatedData = inflateData(deflatedData);
+        }
+
+        return inflatedData;
+    }
+
     public static String inflateData(String deflatedData)
     {
-        byte[] deflatedBytes = Base64.decode(deflatedData, Base64.DEFAULT);
-
-        Inflater inflater = new Inflater();
-        inflater.setInput(deflatedBytes);
-
-        byte[] inflatedData;
-
         try
         {
+            byte[] deflatedBytes = Base64.decode(deflatedData, Base64.DEFAULT);
+
+            Inflater inflater = new Inflater();
+            inflater.setInput(deflatedBytes);
+
+            byte[] inflatedData;
+
             // Inflate the data
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             byte[] buffer = new byte[1024];
@@ -1277,8 +1473,86 @@ public class Utils
         }
         catch (Exception e)
         {
-            Timber.e(e);
             return "";
         }
+    }
+
+    public static boolean isDefaultName(String name, Context ctx)
+    {
+        //wallet.name = getString(R.string.wallet_name_template, walletCount);
+        String walletStr = ctx.getString(R.string.wallet_name_template, 1);
+        String[] walletSplit = walletStr.split(" ");
+        walletStr = walletSplit[0];
+        if (!TextUtils.isEmpty(name) && name.startsWith(walletStr) && walletSplit.length == 2)
+        {
+            //check last part is a number
+            int walletNum = getWalletNum(walletSplit);
+            return walletNum > 0;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    private static int getWalletNum(String[] walletSplit)
+    {
+        if (walletSplit.length != 2)
+        {
+            return 0;
+        }
+
+        String walletNum = walletSplit[1];
+        try
+        {
+            return Integer.parseInt(walletNum);
+        }
+        catch (Exception e)
+        {
+            //
+        }
+
+        return 0;
+    }
+
+    // Detect if we're running in test mode. Don't use keys in test mode
+    public static synchronized boolean isRunningTest()
+    {
+        if (!BuildConfig.DEBUG)
+        {
+            return false;
+        }
+
+        boolean istest;
+
+        try
+        {
+            Class.forName("androidx.test.espresso.Espresso");
+            istest = true;
+        }
+        catch (ClassNotFoundException e)
+        {
+            istest = false;
+        }
+
+        return istest;
+    }
+
+    public static String parseResponseValue(@Nullable String metaDataURI, BigInteger tokenId)
+    {
+        if (metaDataURI != null && metaDataURI.contains(TOKEN_ID_CODE))
+        {
+            String formattedTokenId = Numeric.toHexStringNoPrefixZeroPadded(tokenId, 64);
+            return metaDataURI.replace(TOKEN_ID_CODE, formattedTokenId);
+        }
+        else
+        {
+            return metaDataURI;
+        }
+    }
+
+    public static boolean isDivisibleString(String originalText)
+    {
+        return !TextUtils.isEmpty(originalText) && originalText.length() <= 64;
     }
 }

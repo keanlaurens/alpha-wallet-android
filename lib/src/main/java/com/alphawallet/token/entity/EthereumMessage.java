@@ -1,8 +1,5 @@
 package com.alphawallet.token.entity;
-
-import static com.alphawallet.token.tools.Numeric.cleanHexPrefix;
-
-import com.alphawallet.token.tools.Numeric;
+import org.web3j.utils.Numeric;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
@@ -105,7 +102,7 @@ public class EthereumMessage implements Signable {
     }
 
     private String hexToUtf8(CharSequence hexData) {
-        String hex = cleanHexPrefix(hexData.toString());
+        String hex = Numeric.cleanHexPrefix(hexData.toString());
         ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
         for (int i = 0; i < hex.length(); i += 2) {
             byteBuffer.write((byte) Integer.parseInt(hex.substring(i, i + 2), 16));
@@ -129,5 +126,35 @@ public class EthereumMessage implements Signable {
 
     private byte[] getEthereumMessagePrefix(int messageLength) {
         return MESSAGE_PREFIX.concat(String.valueOf(messageLength)).getBytes();
+    }
+
+    @Override
+    public boolean isDangerous()
+    {
+        boolean hasPrefix = hasPrefix();
+        boolean isText = StandardCharsets.UTF_8.newEncoder().canEncode(userMessage);
+
+        return !hasPrefix() && !StandardCharsets.UTF_8.newEncoder().canEncode(userMessage);
+    }
+
+    public boolean hasPrefix()
+    {
+        //check for leading personal message:
+        byte[] msgPrefix = EthereumMessage.MESSAGE_PREFIX.getBytes();
+        //match?
+        boolean hasPrefix = true;
+        if (prehash.length > msgPrefix.length)
+        {
+            for (int i = 0; i < msgPrefix.length; i++)
+            {
+                if (prehash[i] != msgPrefix[i])
+                {
+                    hasPrefix = false;
+                    break;
+                }
+            }
+        }
+
+        return hasPrefix;
     }
 }

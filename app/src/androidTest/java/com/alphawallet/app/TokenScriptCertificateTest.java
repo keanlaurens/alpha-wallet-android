@@ -1,14 +1,12 @@
 package com.alphawallet.app;
 
 import static androidx.test.espresso.Espresso.onView;
-import static androidx.test.espresso.Espresso.pressBack;
-import static androidx.test.espresso.action.ViewActions.replaceText;
 import static androidx.test.espresso.action.ViewActions.swipeUp;
-import static androidx.test.espresso.matcher.ViewMatchers.isRoot;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withSubstring;
 import static com.alphawallet.app.assertions.Should.shouldSee;
 import static com.alphawallet.app.steps.Steps.GANACHE_URL;
+import static com.alphawallet.app.steps.Steps.addCustomToken;
 import static com.alphawallet.app.steps.Steps.addNewNetwork;
 import static com.alphawallet.app.steps.Steps.getWalletAddress;
 import static com.alphawallet.app.steps.Steps.importPKWalletFromFrontPage;
@@ -16,7 +14,6 @@ import static com.alphawallet.app.steps.Steps.selectTestNet;
 import static com.alphawallet.app.steps.Steps.switchToWallet;
 import static com.alphawallet.app.util.Helper.click;
 import static com.alphawallet.app.util.Helper.waitUntil;
-import static com.alphawallet.app.util.Helper.waitUntilThenBack;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.AllOf.allOf;
@@ -48,13 +45,14 @@ public class TokenScriptCertificateTest extends BaseE2ETest
     private final String contractOwnerPk = "0x69c22d654be7fe75e31fbe26cb56c93ec91144fab67cb71529c8081971635069";
     private final Web3j web3j;
 
-    private final boolean useMumbai = true; //for local testing
+    private final boolean useMumbai = false; //for local testing
 
     private static final Map<String, String[]> WALLETS_ON_GANACHE = new HashMap<String, String[]>()
     {
         {
             put("24", new String[]{"0x644022aef70ad515ee186345fd74b005d759f41be8157c2835de3597d943146d", "0xE494323823fdF1A1Ab6ca79d2538C7182690D52a"});
             put("29", new String[]{"0x5c8843768e0e1916255def80ae7f6197e1f6a2dbcba720038748fc7634e5cffd", "0x162f5e0b63646AAA33a85eA13346F15C5289f901"});
+            put("28", new String[]{"0x5c8843768e0e1916255def80ae7f6197e1f6a2dbcba720038748fc7634e5cffd", "0x162f5e0b63646AAA33a85eA13346F15C5289f901"});
             put("30", new String[]{"0x5c8843768e0e1916255def80ae7f6197e1f6a2dbcba720038748fc7634e5cffd", "0x162f5e0b63646AAA33a85eA13346F15C5289f901"});
             put("32", new String[]{"0x992b442eaa34de3c6ba0b61c75b2e4e0241d865443e313c4fa6ab8ba488a6957", "0xd7Ba01f596a7cc926b96b3B0a037c47A22904c06"});
         }
@@ -70,7 +68,7 @@ public class TokenScriptCertificateTest extends BaseE2ETest
             fail("Please config seed phrase and wallet address for this API level first.");
         }
 
-        web3j = EthUtils.buildWeb3j(GANACHE_URL);
+        web3j = EthUtils.buildWeb3j(GANACHE_URL, 2L);
 
         String privateKey = array[0];
 
@@ -125,32 +123,30 @@ public class TokenScriptCertificateTest extends BaseE2ETest
         //Ensure we're on the wallet page
         switchToWallet(ownerAddress);
 
-        Helper.wait(3);
+        Helper.wait(1);
+
+        addCustomToken(doorContractAddress);
 
         //add the token manually since test doesn't seem to work normally
-        click(withId(R.id.action_my_wallet));
-        click(withSubstring("Add / Hide Tokens"));
-        Helper.wait(1);
-        click(withId(R.id.action_add));
+        /*click(withId(R.id.edit_search));
+
         Helper.wait(1);
 
-        onView(allOf(withId(R.id.edit_text))).perform(replaceText(doorContractAddress));
+        onView(allOf(withId(R.id.st_editText))).perform(replaceText(doorContractAddress));
 
-        onView(isRoot()).perform(waitUntil(withId(R.id.select_token), 300));
-
-        click(withId(R.id.select_token));
+        clickMadly(withId(R.id.select_token));
 
         click(withSubstring("Save"));
 
         Helper.wait(1);
 
         //only press back if we're on the add / hide screen
-        waitUntilThenBack(withSubstring("Add / Hide Tokens"), 10);
+        //waitUntilThenBack(withSubstring("Add / Hide Tokens"), 10);
 
         //Swipe up
-        onView(withId(R.id.coordinator)).perform(ViewActions.swipeUp());
+        onView(withId(R.id.coordinator)).perform(ViewActions.swipeUp());*/
 
-        Helper.wait(2);
+        Helper.wait(1);
 
         onView(withId(R.id.coordinator)).perform(swipeUp());
 
@@ -159,7 +155,7 @@ public class TokenScriptCertificateTest extends BaseE2ETest
         onView(withId(R.id.coordinator)).perform(ViewActions.swipeUp());
 
         //Select token
-        click(withSubstring("OFFIC"), 120);
+        click(withSubstring("OFFICE"), 20);
 
         //Wait for cert to resolve
         //click certificate

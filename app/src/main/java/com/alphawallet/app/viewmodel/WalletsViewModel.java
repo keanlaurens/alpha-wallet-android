@@ -45,6 +45,7 @@ import com.alphawallet.hardware.SignatureFromKey;
 
 import org.web3j.crypto.Keys;
 import org.web3j.crypto.Sign;
+import org.web3j.utils.Numeric;
 
 import java.math.BigInteger;
 import java.security.SignatureException;
@@ -148,7 +149,7 @@ public class WalletsViewModel extends BaseViewModel implements ServiceSyncCallba
         this.tickerService = tickerService;
         this.assetService = assetService;
         this.preferenceRepository = preferenceRepository;
-        this.tokensService = new TokensService(ethereumNetworkRepository, tokenRepository, tickerService, null, null);
+        this.tokensService = new TokensService(ethereumNetworkRepository, tokenRepository, tickerService, null, null, null);
 
         ensResolver = new AWEnsResolver(TokenRepository.getWeb3jService(MAINNET_ID), context);
         syncCallback = null;
@@ -341,7 +342,7 @@ public class WalletsViewModel extends BaseViewModel implements ServiceSyncCallba
     private Single<Wallet> startWalletSync(Wallet wallet)
     {
         return Single.fromCallable(() -> {
-            TokensService svs = new TokensService(ethereumNetworkRepository, tokenRepository, tickerService, null, null);
+            TokensService svs = new TokensService(ethereumNetworkRepository, tokenRepository, tickerService, null, null, null);
             svs.setCurrentAddress(wallet.address.toLowerCase());
             svs.startUpdateCycle();
             svs.setCompletionCallback(this, 2);
@@ -592,7 +593,7 @@ public class WalletsViewModel extends BaseViewModel implements ServiceSyncCallba
     {
         Sign.SignatureData sigData = CryptoFunctions.sigFromByteArray(returnSig.signature);
         BigInteger recoveredKey = Sign.signedMessageToKey(TEST_STRING.getBytes(), sigData);
-        String address = "0x" + Keys.getAddress(recoveredKey);
+        String address = Numeric.prependHexPrefix(Keys.getAddress(recoveredKey));
 
         disposable = fetchWalletsInteract
                 .fetch()

@@ -13,11 +13,9 @@ import com.alphawallet.app.entity.ContractLocator;
 import com.alphawallet.app.entity.CustomViewSettings;
 import com.alphawallet.app.entity.TokenFilter;
 import com.alphawallet.app.entity.tokendata.TokenGroup;
-import com.alphawallet.app.entity.tokens.Attestation;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.entity.tokens.TokenCardMeta;
 import com.alphawallet.app.entity.walletconnect.WalletConnectSessionItem;
-import com.alphawallet.app.repository.TokensRealmSource;
 import com.alphawallet.app.service.AssetDefinitionService;
 import com.alphawallet.app.service.TokensService;
 import com.alphawallet.app.ui.widget.TokensAdapterCallback;
@@ -27,6 +25,7 @@ import com.alphawallet.app.ui.widget.entity.ManageTokensData;
 import com.alphawallet.app.ui.widget.entity.ManageTokensSearchItem;
 import com.alphawallet.app.ui.widget.entity.ManageTokensSortedItem;
 import com.alphawallet.app.ui.widget.entity.SortedItem;
+import com.alphawallet.app.ui.widget.entity.TokenIdSortedItem;
 import com.alphawallet.app.ui.widget.entity.TokenSortedItem;
 import com.alphawallet.app.ui.widget.entity.TotalBalanceSortedItem;
 import com.alphawallet.app.ui.widget.entity.WalletConnectSessionSortedItem;
@@ -169,7 +168,7 @@ public class TokensAdapter extends RecyclerView.Adapter<BinderViewHolder>
                 break;
 
             case SearchTokensHolder.VIEW_TYPE:
-                holder = new SearchTokensHolder(R.layout.layout_manage_token_search, parent, tokensAdapterCallback::onSearchClicked);
+                holder = new SearchTokensHolder(R.layout.layout_manage_token_search, parent, tokensAdapterCallback);
                 break;
 
             case WarningHolder.VIEW_TYPE:
@@ -301,11 +300,11 @@ public class TokensAdapter extends RecyclerView.Adapter<BinderViewHolder>
             }
             else
             {
-                SortedItem headerItem = new HeaderItem(token.group);
+                SortedItem<?> headerItem = new HeaderItem(token.group);
                 items.add(tsi);
                 items.add(headerItem);
 
-                SortedItem chainItem = new ChainItem(token.getChain(), token.group);
+                SortedItem<?> chainItem = new ChainItem(token.getChain(), token.group);
                 if (doesNotExist(chainItem))
                 {
                     items.add(chainItem);
@@ -318,12 +317,12 @@ public class TokensAdapter extends RecyclerView.Adapter<BinderViewHolder>
         }
     }
 
-    private boolean doesNotExist(SortedItem token)
+    private boolean doesNotExist(SortedItem<?> token)
     {
         return findItem(token) == -1;
     }
 
-    private int findItem(SortedItem tsi)
+    private int findItem(SortedItem<?> tsi)
     {
         for (int i = 0; i < items.size(); i++)
         {
@@ -339,9 +338,8 @@ public class TokensAdapter extends RecyclerView.Adapter<BinderViewHolder>
     {
         for (int i = 0; i < items.size(); i++)
         {
-            if (items.get(i) instanceof TokenSortedItem)
+            if (items.get(i) instanceof TokenSortedItem tsi)
             {
-                TokenSortedItem tsi = (TokenSortedItem) items.get(i);
                 if (tsi.value.equals(token))
                 {
                     if (tsi.value.getNameWeight() != token.getNameWeight())
@@ -359,53 +357,67 @@ public class TokensAdapter extends RecyclerView.Adapter<BinderViewHolder>
         for (int i = 0; i < items.size(); i++)
         {
             Object si = items.get(i);
-            if (si instanceof TokenSortedItem)
+            if (si instanceof TokenSortedItem tsi && tsi.value.tokenId != null)
             {
-                TokenSortedItem tsi = (TokenSortedItem) si;
                 TokenCardMeta thisToken = tsi.value;
                 if (thisToken.tokenId.equalsIgnoreCase(token.tokenId))
                 {
-                    items.removeItemAt(i);
+                    items.remove(tsi);
                     break;
                 }
             }
         }
     }
 
-    public SortedItem<TokenCardMeta> removeToken(long chainId, String tokenAddress)
+    public SortedItem<TokenCardMeta> removeToken(String removalKey)
     {
-        String id = TokensRealmSource.databaseKey(chainId, tokenAddress);
         for (int i = 0; i < items.size(); i++)
         {
             Object si = items.get(i);
-            if (si instanceof TokenSortedItem)
+            if (si instanceof TokenSortedItem tsi && tsi.value.tokenId != null)
             {
-                TokenSortedItem tsi = (TokenSortedItem) si;
-                TokenCardMeta thisToken = tsi.value;
-                if (thisToken.tokenId.equalsIgnoreCase(id))
+                if (tsi.value.tokenId.toLowerCase(Locale.ROOT).startsWith(removalKey))
                 {
-                    return items.removeItemAt(i);
+                    items.remove(tsi);
+                    return tsi;
                 }
             }
         }
         return null;
     }
 
-    public SortedItem<TokenCardMeta> removeAttestation(Token token)
+    public SortedItem<TokenCardMeta> removeEntry(String tokenId)
     {
-        Attestation attn = (Attestation)token;
-        String attnKey = attn.getDatabaseKey().toLowerCase(Locale.ROOT);
         for (int i = 0; i < items.size(); i++)
         {
             Object si = items.get(i);
-            if (si instanceof TokenSortedItem)
+            if (si instanceof TokenSortedItem tsi && tsi.value.tokenId != null)
             {
-                TokenSortedItem tsi = (TokenSortedItem) si;
                 TokenCardMeta thisToken = tsi.value;
 
-                if (thisToken.tokenId.toLowerCase(Locale.ROOT).startsWith(attnKey))
+                if (thisToken.tokenId.equals(tokenId))
                 {
-                    return items.removeItemAt(i);
+                    items.remove(tsi);
+                    return tsi;
+                }
+            }
+        }
+        return null;
+    }
+
+    public SortedItem<TokenCardMeta> removeToken(Token token)
+    {
+        String tokenKey = token.getDatabaseKey().toLowerCase(Locale.ROOT);
+        for (int i = 0; i < items.size(); i++)
+        {
+            Object si = items.get(i);
+            if (si instanceof TokenSortedItem tsi && tsi.value.tokenId != null)
+            {
+                TokenCardMeta thisToken = tsi.value;
+                if (thisToken.tokenId.toLowerCase(Locale.ROOT).startsWith(tokenKey))
+                {
+                    items.remove(tsi);
+                    return tsi;
                 }
             }
         }
@@ -414,7 +426,7 @@ public class TokensAdapter extends RecyclerView.Adapter<BinderViewHolder>
 
     private boolean canDisplayToken(TokenCardMeta token)
     {
-        if (token == null) return false;
+        if (token == null || token.balance == null) return false;
         if (token.balance.equals("-2"))
         {
             return false;
@@ -509,9 +521,8 @@ public class TokensAdapter extends RecyclerView.Adapter<BinderViewHolder>
         for (int i = 0; i < items.size(); i++)
         {
             Object si = items.get(i);
-            if (si instanceof TokenSortedItem)
+            if (si instanceof TokenSortedItem tsi)
             {
-                TokenSortedItem tsi = (TokenSortedItem) si;
                 if (canDisplayToken(tsi.value))
                 {
                     filterTokens.add(tsi.value);
@@ -553,9 +564,8 @@ public class TokensAdapter extends RecyclerView.Adapter<BinderViewHolder>
             for (int i = 0; i < items.size(); i++)
             {
                 Object si = items.get(i);
-                if (si instanceof TokenSortedItem)
+                if (si instanceof TokenSortedItem tsi)
                 {
-                    TokenSortedItem tsi = (TokenSortedItem) si;
                     TokenCardMeta token = tsi.value;
                     if (scrollToken.equals(token))
                     {
@@ -590,6 +600,8 @@ public class TokensAdapter extends RecyclerView.Adapter<BinderViewHolder>
                 TokenCardMeta tcm = ((TokenSortedItem) si).value;
                 if (updatedContracts.contains(tcm.getAddress()))
                 {
+                    TokenSortedItem tsi = (TokenSortedItem) si;
+                    tsi.setFiatValue(tokensService.getTokenFiatValue(tcm.getChain(), tcm.getAddress()));
                     notifyItemChanged(i); //optimise update - no need to update elements without tickers
                 }
             }
@@ -614,14 +626,7 @@ public class TokensAdapter extends RecyclerView.Adapter<BinderViewHolder>
 
     public void showActiveWalletConnectSessions(List<WalletConnectSessionItem> sessions)
     {
-        if (sessions.isEmpty())
-        {
-            removeItem(WalletConnectSessionHolder.VIEW_TYPE);
-        }
-        else
-        {
-            items.add(new WalletConnectSessionSortedItem(sessions, 2));
-        }
+        checkWalletConnect();
     }
 
     public void removeItem(int viewType)
@@ -639,5 +644,27 @@ public class TokensAdapter extends RecyclerView.Adapter<BinderViewHolder>
     public void addToken(SortedItem<TokenCardMeta> token)
     {
         items.add(token);
+    }
+
+    public void checkWalletConnect()
+    {
+        //activate WC logo in search bar if we have active WC sessions
+        for (int i = 0; i < items.size(); i++)
+        {
+            Object si = items.get(i);
+            if (si instanceof ManageTokensSearchItem manageTokensSearchItem && manageTokensSearchItem.view instanceof SearchTokensHolder sth)
+            {
+                if (tokensAdapterCallback.hasWCSession())
+                {
+                    sth.enableWalletConnect();
+                }
+                else
+                {
+                    sth.hideWalletConnect();
+                }
+
+                break;
+            }
+        }
     }
 }

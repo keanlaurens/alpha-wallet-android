@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Pair;
+import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -16,6 +17,7 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.ViewModelProvider;
 
+import com.alphawallet.app.BuildConfig;
 import com.alphawallet.app.R;
 import com.alphawallet.app.entity.AuthenticationCallback;
 import com.alphawallet.app.entity.AuthenticationFailType;
@@ -25,11 +27,15 @@ import com.alphawallet.app.entity.Wallet;
 import com.alphawallet.app.entity.WalletType;
 import com.alphawallet.app.service.KeyService;
 import com.alphawallet.app.service.KeystoreAccountService;
+import com.alphawallet.app.util.Utils;
 import com.alphawallet.app.viewmodel.BackupKeyViewModel;
 import com.alphawallet.app.widget.AWalletAlertDialog;
+import com.alphawallet.app.widget.CopyTextView;
 import com.alphawallet.app.widget.FunctionButtonBar;
 import com.alphawallet.app.widget.SignTransactionDialog;
-import com.alphawallet.token.tools.Numeric;
+
+import org.web3j.crypto.WalletUtils;
+import org.web3j.utils.Numeric;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.web3j.crypto.Credentials;
@@ -37,6 +43,7 @@ import org.web3j.crypto.ECKeyPair;
 import org.web3j.crypto.WalletFile;
 
 import java.io.File;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.regex.Matcher;
@@ -45,6 +52,7 @@ import java.util.regex.Pattern;
 import dagger.hilt.android.AndroidEntryPoint;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.schedulers.Schedulers;
+import timber.log.Timber;
 import wallet.core.jni.CoinType;
 import wallet.core.jni.HDWallet;
 import wallet.core.jni.PrivateKey;
@@ -150,12 +158,17 @@ public class WalletDiagnosticActivity extends BaseActivity implements StandardFu
     }
 
     @Override
+    public boolean onCreateOptionsMenu(Menu menu)
+    {
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
     public boolean onOptionsItemSelected(MenuItem item)
     {
         if (item.getItemId() == android.R.id.home)
         {
-            onBackPressed();
-            return true;
+            finish();
         }
 
         return super.onOptionsItemSelected(item);
@@ -345,11 +358,21 @@ public class WalletDiagnosticActivity extends BaseActivity implements StandardFu
         }
     }
 
+    private void exposeStatus()
+    {
+        LinearLayout llStatus = findViewById(R.id.layout_status);
+        llStatus.setVisibility(View.VISIBLE);
+        CopyTextView pkView = findViewById(R.id.copy_pk);
+        pkView.setVisibility(View.GONE);
+    }
+
     private boolean testKeyType(String keyData)
     {
         //could either be a seed phrase or a keystore
         Pattern pattern = Pattern.compile(ImportSeedFragment.validator, Pattern.MULTILINE);
-        TextView status = findViewById(R.id.status_txt);
+        TextView status = findViewById(R.id.text_status);
+        CopyTextView pubKeyText = findViewById(R.id.copy_public);
+        exposeStatus();
 
         //first check for seed phrase
         final Matcher matcher = pattern.matcher(keyData);
@@ -362,9 +385,14 @@ public class WalletDiagnosticActivity extends BaseActivity implements StandardFu
                 //is valid seed phrase
                 HDWallet newWallet = new HDWallet(keyData, "");
                 PrivateKey pk = newWallet.getKeyForCoin(CoinType.ETHEREUM);
-
-                status.setText(getString(R.string.seed_phrase_public_key, Numeric.toHexString(pk.getPublicKeySecp256k1(false).data())));
+                status.setText(R.string.seed_phrase_public_key);
                 status.setTextColor(getColor(R.color.green));
+                pubKeyText.setText(Numeric.toHexString(pk.getPublicKeySecp256k1(false).data()));
+
+                CopyTextView pkView = findViewById(R.id.copy_pk);
+                pkView.setVisibility(View.VISIBLE);
+                String pkStr = (new BigInteger(1, pk.data())).toString(16);
+                pkView.setFixedText(pkStr);
                 isSeedPhrase = true;
                 return true;
             }
@@ -384,7 +412,15 @@ public class WalletDiagnosticActivity extends BaseActivity implements StandardFu
                 }
                 else
                 {
-                    status.setText(getString(R.string.keystore_public_key, credentials.getEcKeyPair().getPublicKey().toString(16)));
+                    status.setText(R.string.keystore_public_key);
+                    status.setTextColor(getColor(R.color.green));
+                    pubKeyText.setText(credentials.getEcKeyPair().getPublicKey().toString(16));
+
+                    //show PK
+                    CopyTextView pkView = findViewById(R.id.copy_pk);
+                    pkView.setVisibility(View.VISIBLE);
+                    String pk = credentials.getEcKeyPair().getPrivateKey().toString(16);
+                    pkView.setFixedText(pk);
                     isKeyStore = true;
                     return true;
                 }
@@ -400,7 +436,7 @@ public class WalletDiagnosticActivity extends BaseActivity implements StandardFu
 
     private int wordCount(String value)
     {
-        if (value == null || value.length() == 0) return 0;
+        if (value == null || value.isEmpty()) return 0;
         String[] split = value.split("\\s+");
         return split.length;
     }
@@ -409,6 +445,12 @@ public class WalletDiagnosticActivity extends BaseActivity implements StandardFu
     // Always use the ActionSheet + implement ActionSheetCallback as per SendActivity, NFTAssetDetailActivity etc
     private void doUnlock(UnlockCallback cb)
     {
+        if (BuildConfig.DEBUG && Utils.isRunningTest()) //running tests in debug build mode, we don't use key unlock
+        {
+            cb.carryOn(true);
+            return;
+        }
+
         SignTransactionDialog unlockTx = new SignTransactionDialog(this);
         unlockTx.getAuthentication(new AuthenticationCallback()
         {
@@ -447,7 +489,7 @@ public class WalletDiagnosticActivity extends BaseActivity implements StandardFu
         }
         catch (Exception e)
         {
-            e.printStackTrace();
+            Timber.e(e);
         }
 
         return "";
@@ -455,7 +497,7 @@ public class WalletDiagnosticActivity extends BaseActivity implements StandardFu
 
     private void showError(String error)
     {
-        TextView statusTxt = findViewById(R.id.status_txt);
+        TextView statusTxt = findViewById(R.id.text_status);
         statusTxt.setText(error);
         statusTxt.setTextColor(getColor(R.color.danger));
         if (dialog != null && dialog.isShowing()) dialog.dismiss();

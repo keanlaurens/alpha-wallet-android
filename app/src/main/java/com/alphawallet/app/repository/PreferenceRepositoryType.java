@@ -46,6 +46,10 @@ public interface PreferenceRepositoryType
 
     void setUse1559Transactions(boolean toggleState);
 
+    boolean getDeveloperOverride();
+
+    void setDeveloperOverride(boolean toggleState);
+
     boolean isTestnetEnabled();
 
     void setTestnetEnabled(boolean enabled);
@@ -138,4 +142,8 @@ public interface PreferenceRepositoryType
     boolean isPostNotificationsPermissionRequested(String address);
 
     void setPostNotificationsPermissionRequested(String address, boolean hasRequested);
+
+    boolean getUseTSViewer();
+
+    void setUseTSViewer(boolean toggleState);
 }

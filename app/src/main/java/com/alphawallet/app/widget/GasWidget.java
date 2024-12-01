@@ -11,11 +11,10 @@ import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import androidx.activity.result.ActivityResultLauncher;
-
 import com.alphawallet.app.BuildConfig;
 import com.alphawallet.app.C;
 import com.alphawallet.app.R;
+import com.alphawallet.app.entity.ActionSheetInterface;
 import com.alphawallet.app.entity.GasPriceSpread;
 import com.alphawallet.app.entity.StandardFunctionInterface;
 import com.alphawallet.app.entity.TXSpeed;
@@ -24,12 +23,11 @@ import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.repository.TokensRealmSource;
 import com.alphawallet.app.repository.entity.RealmGasSpread;
 import com.alphawallet.app.repository.entity.RealmTokenTicker;
-import com.alphawallet.app.walletconnect.AWWalletConnectClient;
 import com.alphawallet.app.service.GasService;
 import com.alphawallet.app.service.TickerService;
 import com.alphawallet.app.service.TokensService;
 import com.alphawallet.app.ui.GasSettingsActivity;
-import com.alphawallet.app.ui.widget.entity.GasSpeed2;
+import com.alphawallet.app.ui.widget.entity.GasSpeed;
 import com.alphawallet.app.ui.widget.entity.GasWidgetInterface;
 import com.alphawallet.app.util.BalanceUtils;
 import com.alphawallet.app.util.Utils;
@@ -71,6 +69,8 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
     private long customNonce = -1;
     private boolean isSendingAll;
     private BigInteger resendGasPrice = BigInteger.ZERO;
+    long gasEstimateTime = 0;
+    private ActionSheetInterface actionSheetInterface;
 
     public GasWidget(Context ctx, AttributeSet attrs)
     {
@@ -86,7 +86,7 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
     //For legacy transaction, either we are sending all or the chain doesn't support EIP1559
     //Since these chains are not so well used, we will compromise and send at the standard gas rate
     //That is - not allow selection of gas price
-    public void setupWidget(TokensService svs, Token t, Web3Transaction tx, StandardFunctionInterface sfi, ActivityResultLauncher<Intent> gasSelectLauncher)
+    public void setupWidget(TokensService svs, Token t, Web3Transaction tx, StandardFunctionInterface sfi, ActionSheetInterface actionSheetIf)
     {
         tokensService = svs;
         token = t;
@@ -97,6 +97,7 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
         isSendingAll = isSendingAll(tx);
         initialGasPrice = tx.gasPrice;
         customNonce = tx.nonce;
+        actionSheetInterface = actionSheetIf;
 
         if (tx.gasLimit.equals(BigInteger.ZERO)) //dapp didn't specify a limit, use default limits until node returns an estimate (see setGasEstimate())
         {
@@ -134,22 +135,27 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
                 intent.putExtra(C.EXTRA_NONCE, customNonce);
                 intent.putExtra(C.EXTRA_1559_TX, false);
                 intent.putExtra(C.EXTRA_MIN_GAS_PRICE, resendGasPrice.longValue());
-                gasSelectLauncher.launch(intent);
+                actionSheetInterface.gasSelectLauncher().launch(intent);
             });
         }
     }
 
     private void setupGasSpeeds(Web3Transaction w3tx)
     {
-        RealmGasSpread rgs = getGasQuery().findFirst();
-        if (rgs != null)
+        try (Realm realm = tokensService.getTickerRealmInstance())
         {
-            initGasSpeeds(rgs);
-        }
-        else
-        {
-            // Couldn't get current gas. Add a blank custom gas speed node
-            gasSpread = new GasPriceSpread(getContext(), w3tx.gasPrice);
+            RealmGasSpread gasReturn = realm.where(RealmGasSpread.class)
+                    .equalTo("chainId", token.tokenInfo.chainId).findFirst();
+
+            if (gasReturn != null)
+            {
+                initGasSpeeds(gasReturn);
+            }
+            else
+            {
+                // Couldn't get current gas. Add a blank custom gas speed node
+                gasSpread = new GasPriceSpread(getContext(), w3tx.gasPrice);
+            }
         }
 
         if (w3tx.gasPrice.compareTo(BigInteger.ZERO) > 0)
@@ -214,7 +220,7 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
         BigInteger useGasLimit = getUseGasLimit();
         boolean sufficientGas = true;
 
-        GasSpeed2 gs = gasSpread.getSelectedGasFee(currentGasSpeedIndex);
+        GasSpeed gs = gasSpread.getSelectedGasFee(currentGasSpeedIndex);
         BigDecimal networkFee = new BigDecimal(gs.gasPrice.maxFeePerGas.multiply(useGasLimit));
         Token base = tokensService.getTokenOrBase(token.tokenInfo.chainId, token.getWallet());
 
@@ -258,7 +264,7 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
     private BigInteger calculateSendAllValue()
     {
         BigInteger sendAllValue;
-        GasSpeed2 gs = gasSpread.getSelectedGasFee(currentGasSpeedIndex);
+        GasSpeed gs = gasSpread.getSelectedGasFee(currentGasSpeedIndex);
         BigDecimal networkFee = new BigDecimal(gs.gasPrice.maxFeePerGas.multiply(getUseGasLimit()));
 
         if (isSendingAll)
@@ -302,6 +308,8 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
 
             TextView editTxt = findViewById(R.id.edit_text);
 
+            gasEstimateTime = rgs.getTimeStamp();
+
             if (gasSpread.hasLockedGas() && editTxt.getVisibility() == View.VISIBLE)
             {
                 findViewById(R.id.edit_text).setVisibility(View.GONE);
@@ -324,7 +332,7 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
     @Override
     public void run()
     {
-        GasSpeed2 gs = gasSpread.getSelectedGasFee(currentGasSpeedIndex);
+        GasSpeed gs = gasSpread.getSelectedGasFee(currentGasSpeedIndex);
 
         if (gs == null || gs.gasPrice == null || gs.gasPrice.maxFeePerGas == null)
         {
@@ -384,13 +392,36 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
         }
         checkSufficientGas();
         manageWarnings();
+
+        if (gasPriceReady(gasEstimateTime))
+        {
+            actionSheetInterface.gasEstimateReady();
+            setGasReadyStatus(true);
+        }
+        else
+        {
+            setGasReadyStatus(false);
+        }
     }
 
     @Override
     public BigInteger getGasPrice(BigInteger defaultPrice)
     {
-        GasSpeed2 gs = gasSpread.getSelectedGasFee(currentGasSpeedIndex);
-        return gs.gasPrice.maxFeePerGas;
+        if (gasSpread == null || !gasSpread.isResultValid())
+        {
+            return defaultPrice;
+        }
+        else
+        {
+            GasSpeed gs = gasSpread.getSelectedGasFee(currentGasSpeedIndex);
+            return gs.gasPrice.maxFeePerGas;
+        }
+    }
+
+    @Override
+    public boolean gasPriceReady()
+    {
+        return gasPriceReady(gasEstimateTime);
     }
 
     @Override
@@ -410,8 +441,8 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
     {
         double dGasPrice = customGasPrice.doubleValue();
 
-        GasSpeed2 ug = gasSpread.getQuickestGasSpeed();
-        GasSpeed2 lg = gasSpread.getSlowestGasSpeed();
+        GasSpeed ug = gasSpread.getQuickestGasSpeed();
+        GasSpeed lg = gasSpread.getSlowestGasSpeed();
 
         double lowerBound = lg.gasPrice.maxFeePerGas.doubleValue();
         double upperBound = ug.gasPrice.maxFeePerGas.doubleValue();
@@ -439,6 +470,12 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
         {
             speedWarning.setVisibility(View.GONE);
         }
+    }
+
+    private void setGasReadyStatus(boolean ready)
+    {
+        findViewById(R.id.view_spacer).setVisibility(ready ? View.VISIBLE : View.GONE);
+        findViewById(R.id.gas_fetch_wait).setVisibility(ready ? View.GONE : View.VISIBLE);
     }
 
     private void showCustomSpeedWarning(boolean high)
@@ -498,7 +535,7 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
 
     public long getExpectedTransactionTime()
     {
-        GasSpeed2 gs = gasSpread.getSelectedGasFee(currentGasSpeedIndex);
+        GasSpeed gs = gasSpread.getSelectedGasFee(currentGasSpeedIndex);
         return gs.seconds;
     }
 
@@ -543,6 +580,12 @@ public class GasWidget extends LinearLayout implements Runnable, GasWidgetInterf
             estimate = estimate.multiply(BigInteger.valueOf(6)).divide(BigInteger.valueOf(5)); // increase estimate by 20% to be safe
         }
 
+        setGasEstimateExact(estimate);
+    }
+
+    @Override
+    public void setGasEstimateExact(BigInteger estimate)
+    {
         //Override custom gas limit
         if (customGasLimit.equals(baseLineGasLimit))
         {

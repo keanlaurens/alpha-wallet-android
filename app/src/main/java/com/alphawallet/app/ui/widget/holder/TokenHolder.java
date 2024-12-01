@@ -39,7 +39,6 @@ import com.alphawallet.token.tools.TokenDefinition;
 import com.google.android.material.checkbox.MaterialCheckBox;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.util.Locale;
 
@@ -70,6 +69,7 @@ public class TokenHolder extends BinderViewHolder<TokenCardMeta> implements View
 
     public Token token;
     private TokensAdapterCallback tokensAdapterCallback;
+    public String tokenKey;
 
     public TokenHolder(ViewGroup parent, AssetDefinitionService assetService, TokensService tSvs)
     {
@@ -106,6 +106,7 @@ public class TokenHolder extends BinderViewHolder<TokenCardMeta> implements View
         }
         try
         {
+            tokenKey = data.tokenId;
             tokenLayout.setVisibility(View.VISIBLE);
             token = tokensService.getToken(data.getChain(), data.getAddress());
             if (token != null)
@@ -150,11 +151,11 @@ public class TokenHolder extends BinderViewHolder<TokenCardMeta> implements View
             if (!TextUtils.isEmpty(coinBalance))
             {
                 balanceCoin.setVisibility(View.VISIBLE);
-                String symbol = token.getSymbol().substring(0, Math.min(token.getSymbol().length(), 5)).toUpperCase();
+                String symbol = token.getSymbol().substring(0, Math.min(token.getSymbol().length(), Token.MAX_TOKEN_SYMBOL_LENGTH)).toUpperCase();
                 balanceCoin.setText(getString(R.string.valueSymbol, coinBalance, symbol));
             }
 
-            tokenIcon.bindData(token, assetDefinition);
+            tokenIcon.bindData(token);
             if (!token.isEthereum())
             {
                 tokenIcon.setChainIcon(token.tokenInfo.chainId); //Add in when we upgrade the design
@@ -193,7 +194,14 @@ public class TokenHolder extends BinderViewHolder<TokenCardMeta> implements View
         balanceEth.setText(attestation.getAttestationName(td));
         balanceCoin.setText(attestation.getAttestationDescription(td));
         balanceCoin.setVisibility(View.VISIBLE);
-        tokenIcon.setAttestationIcon(nftAsset.getImage(), attestation.getSymbol(), data.getChain());
+        if (attestation.knownIssuerKey())
+        {
+            tokenIcon.setSmartPassIcon(data.getChain());
+        }
+        else
+        {
+            tokenIcon.setAttestationIcon(nftAsset.getImage(), attestation.getSymbol(), data.getChain());
+        }
         token = attestation;
         blankTickerInfo();
     }

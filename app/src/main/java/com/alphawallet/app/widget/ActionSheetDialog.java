@@ -10,6 +10,7 @@ import android.view.View;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
 
@@ -18,6 +19,7 @@ import com.alphawallet.app.R;
 import com.alphawallet.app.entity.ActionSheetInterface;
 import com.alphawallet.app.entity.ActionSheetStatus;
 import com.alphawallet.app.entity.ContractType;
+import com.alphawallet.app.entity.EIP1559FeeOracleResult;
 import com.alphawallet.app.entity.GasEstimate;
 import com.alphawallet.app.entity.NetworkInfo;
 import com.alphawallet.app.entity.SignAuthenticationCallback;
@@ -32,11 +34,8 @@ import com.alphawallet.app.repository.EthereumNetworkBase;
 import com.alphawallet.app.repository.SharedPreferenceRepository;
 import com.alphawallet.app.repository.entity.Realm1559Gas;
 import com.alphawallet.app.repository.entity.RealmTransaction;
-import com.alphawallet.app.service.SignatureLookupService;
 import com.alphawallet.app.service.TokensService;
 import com.alphawallet.app.ui.HomeActivity;
-import com.alphawallet.app.ui.TransactionSuccessActivity;
-import com.alphawallet.app.ui.WalletConnectActivity;
 import com.alphawallet.app.ui.widget.entity.ActionSheetCallback;
 import com.alphawallet.app.ui.widget.entity.GasWidgetInterface;
 import com.alphawallet.app.util.Utils;
@@ -53,10 +52,10 @@ import java.util.Collections;
 import java.util.List;
 
 import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.annotations.Nullable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 import io.realm.Realm;
-import timber.log.Timber;
 
 /**
  * Created by JB on 17/11/2020.
@@ -93,7 +92,10 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
     private boolean use1559Transactions = false;
     private Transaction transaction;
     private final WalletType walletType;
-    private Disposable disposable;
+    @Nullable
+    private Disposable backupGasFetchDisposable;
+
+    private EIP1559FeeOracleResult gasToUse = null;
 
     public ActionSheetDialog(@NonNull Activity activity, Web3Transaction tx, Token t,
                              String destName, String destAddress, TokensService ts,
@@ -124,10 +126,6 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
         {
             mode = ActionSheetMode.SEND_TRANSACTION_DAPP;
         }
-        else if (activity instanceof WalletConnectActivity)
-        {
-            mode = ActionSheetMode.SEND_TRANSACTION_WC;
-        }
         else
         {
             mode = ActionSheetMode.SEND_TRANSACTION;
@@ -147,14 +145,18 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
         transaction = new Transaction(tx, token.tokenInfo.chainId, ts.getCurrentAddress());
         transaction.transactionInput = Transaction.decoder.decodeInput(candidateTransaction, token.tokenInfo.chainId, token.getWallet());
 
-        balanceDisplay.setupBalance(token, tokensService, transaction);
+        balanceDisplay.setupBalance(token, transaction);
         networkDisplay.setNetwork(token.tokenInfo.chainId);
 
         gasWidgetInterface = setupGasWidget();
 
+        //ensure gas service is started
+        actionSheetCallback.getGasService().startGasPriceCycle(token.tokenInfo.chainId);
+
         if (!tx.gasLimit.equals(BigInteger.ZERO))
         {
-            setGasEstimate(new GasEstimate(tx.gasLimit));
+            gasWidgetInterface.setGasEstimateExact(tx.gasLimit);
+            functionBar.setPrimaryButtonEnabled(true);
         }
 
         updateAmount();
@@ -325,23 +327,22 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
     private GasWidgetInterface setupGasWidget()
     {
         SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getContext());
-        boolean canUse1559Transactions = prefs.getBoolean(SharedPreferenceRepository.EXPERIMENTAL_1559_TX, false);
+        boolean canUse1559Transactions = prefs.getBoolean(SharedPreferenceRepository.EXPERIMENTAL_1559_TX, true);
 
         use1559Transactions = canUse1559Transactions && has1559Gas() //1559 Transactions toggled on in settings and this chain supports 1559
                 && !(token.isEthereum() && candidateTransaction.leafPosition == -2) //User not sweeping wallet (if so we need to use legacy tx)
-                && !tokensService.hasLockedGas(token.tokenInfo.chainId) //Service has locked gas, can only use legacy (eg Optimism).
-                && !candidateTransaction.isConstructor(); //Currently cannot use EIP1559 for constructors due to gas calculation issues
+                && !tokensService.hasLockedGas(token.tokenInfo.chainId); //Service has locked gas, can only use legacy (eg Optimism).
 
         if (use1559Transactions)
         {
-            gasWidget.setupWidget(tokensService, token, candidateTransaction, actionSheetCallback.gasSelectLauncher());
+            gasWidget.setupWidget(tokensService, token, candidateTransaction, this);
             return gasWidget;
         }
         else
         {
             gasWidget.setVisibility(View.GONE);
             gasWidgetLegacy.setVisibility(View.VISIBLE);
-            gasWidgetLegacy.setupWidget(tokensService, token, candidateTransaction, this, actionSheetCallback.gasSelectLauncher());
+            gasWidgetLegacy.setupWidget(tokensService, token, candidateTransaction, this, this);
             return gasWidgetLegacy;
         }
     }
@@ -354,10 +355,16 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
         use1559Transactions = !candidateTransaction.isLegacyTransaction(); // If doing a sign-only transaction (not send) we must respect ERC-1559 or legacy.
     }
 
+    public void setDappSigningMode()
+    {
+        this.mode = ActionSheetMode.SEND_TRANSACTION_DAPP;
+    }
+
     public void onDestroy()
     {
         if (gasWidgetInterface != null) gasWidgetInterface.onDestroy();
         if (assetDetailView != null) assetDetailView.onDestroy();
+        if (detailWidget != null) detailWidget.onDestroy();
     }
 
     public void setURL(String url)
@@ -387,32 +394,13 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
         if (candidateTransaction.isBaseTransfer())
         {
             detailWidget.setVisibility(View.GONE);
-            return;
         }
         else
         {
             detailWidget.setVisibility(View.VISIBLE);
+            detailWidget.setupTransaction(candidateTransaction, token.tokenInfo.chainId,
+                    tokensService.getNetworkSymbol(token.tokenInfo.chainId), this);
         }
-
-        SignatureLookupService svc = new SignatureLookupService();
-        disposable = svc.getFunctionName(candidateTransaction.payload)
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribeOn(Schedulers.io())
-            .subscribe(this::onResult, this::recoverOnError);
-    }
-
-    private void recoverOnError(Throwable e)
-    {
-        Timber.w(e);
-        onResult("");
-    }
-
-    private void onResult(String functionName)
-    {
-        detailWidget.setupTransaction(candidateTransaction, token.tokenInfo.chainId,
-            tokensService.getNetworkSymbol(token.tokenInfo.chainId), this, functionName);
-
-        disposable.dispose();
     }
 
     @Override
@@ -457,6 +445,8 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
     @SuppressWarnings("checkstyle:MissingSwitchDefault")
     public void handleClick(String action, int id)
     {
+        //first ensure gas estimate is up to date
+
         if (walletType == WalletType.HARDWARE)
         {
             //TODO: Hardware - Maybe flick a toast to tell user to apply card
@@ -470,14 +460,16 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
             case SEND_TRANSACTION_DAPP:
             case SPEEDUP_TRANSACTION:
             case CANCEL_TRANSACTION:
-                //check gas and warn user
-                if (!gasWidgetInterface.checkSufficientGas())
+                gasToUse = getGasSettingsToUse();
+                if (gasToUse == null)
                 {
-                    askUserForInsufficientGasConfirm();
+                    functionBar.setPrimaryButtonWaiting();
+                    //call gas collect then push tx again
+                    callGasUpdateAndRePushTx();
                 }
                 else
                 {
-                    handleTransactionOperation();
+                    checkGasAndSend();
                 }
                 break;
             case SIGN_TRANSACTION:
@@ -498,6 +490,67 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
                 }
                 break;
         }
+    }
+
+    private void checkGasAndSend()
+    {
+        functionBar.setPrimaryButtonEnabled(true);
+        //check gas and warn user
+        if (!gasWidgetInterface.checkSufficientGas())
+        {
+            askUserForInsufficientGasConfirm();
+        }
+        else
+        {
+            handleTransactionOperation();
+        }
+    }
+
+    private void callGasUpdateAndRePushTx()
+    {
+        //fetch gas and then re-click
+        backupGasFetchDisposable = actionSheetCallback.getGasService().fetchGasPrice(token.tokenInfo.chainId, use1559Transactions)
+            .subscribeOn(Schedulers.io())
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe(gasPriceStandard -> {
+                gasToUse = gasPriceStandard;
+                if (use1559Transactions && gasToUse.maxFeePerGas.equals(BigInteger.ZERO) && gasToUse.priorityFee.equals(BigInteger.ZERO))
+                {
+                    use1559Transactions = false;
+                }
+                checkGasAndSend();
+            });
+    }
+
+    @Override
+    public void gasEstimateReady()
+    {
+        functionBar.setPrimaryButtonEnabled(true);
+    }
+
+    @Override
+    public ActivityResultLauncher<Intent> gasSelectLauncher()
+    {
+        return actionSheetCallback.gasSelectLauncher();
+    }
+
+    private EIP1559FeeOracleResult getGasSettingsToUse()
+    {
+        if (gasWidgetInterface != null && gasWidgetInterface.gasPriceReady())
+        {
+            if (use1559Transactions)
+            {
+                return new EIP1559FeeOracleResult(gasWidgetInterface.getGasMax(),
+                        gasWidgetInterface.getPriorityFee(), gasWidgetInterface.getGasPrice());
+            }
+            else
+            {
+                return new EIP1559FeeOracleResult(BigInteger.ZERO,
+                        BigInteger.ZERO, gasWidgetInterface.getGasPrice(candidateTransaction.gasPrice));
+            }
+        }
+
+        return null;
     }
 
     private BigDecimal getTransactionAmount()
@@ -521,8 +574,18 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
 
     private String getERC721TokenId()
     {
-        if (!token.isERC721()) return "";
-        return token.getTransferValueRaw(transaction.transactionInput).toString();
+        if (!token.isERC721())
+        {
+            return "";
+        }
+        else if (actionSheetCallback.getTokenId().compareTo(BigInteger.ZERO) > 0)
+        {
+            return actionSheetCallback.getTokenId().toString();
+        }
+        else
+        {
+            return token.getTransferValueRaw(transaction.transactionInput).toString();
+        }
     }
 
     /**
@@ -564,11 +627,8 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
         switch (mode)
         {
             case SEND_TRANSACTION:
-                //Display transaction success dialog
-                Intent intent = new Intent(getContext(), TransactionSuccessActivity.class);
-                intent.putExtra(C.EXTRA_TXHASH, txHash);
-                intent.setFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-                activity.startActivityForResult(intent, C.COMPLETED_TRANSACTION);
+                //Send user to activity sheet, bypass the transaction confirmation screen
+                actionSheetCallback.dismissed(txHash, callbackId, true);
                 tryDismiss();
                 break;
 
@@ -618,6 +678,10 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
         setOnDismissListener(v -> {
             actionSheetCallback.dismissed(txHash, callbackId, actionCompleted);
             if (gasWidgetInterface != null) gasWidgetInterface.onDestroy();
+            if (backupGasFetchDisposable != null && !backupGasFetchDisposable.isDisposed())
+            {
+                backupGasFetchDisposable.dispose();
+            }
         });
     }
 
@@ -653,14 +717,12 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
         //form Web3Transaction
         if (!use1559Transactions)
         {
-            BigInteger currentGasPrice = gasWidgetInterface.getGasPrice(candidateTransaction.gasPrice); // also recalculates the transaction value
-
             establishedTransaction = new Web3Transaction(
                     candidateTransaction.recipient,
                     candidateTransaction.contract,
                     candidateTransaction.sender,
                     gasWidgetInterface.getValue(),
-                    currentGasPrice,
+                    gasToUse.baseFee,
                     gasWidgetInterface.getGasLimit(),
                     gasWidgetInterface.getNonce(),
                     candidateTransaction.payload,
@@ -674,8 +736,8 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
                     candidateTransaction.contract,
                     candidateTransaction.sender,
                     gasWidgetInterface.getValue(),
-                    gasWidgetInterface.getGasMax(),
-                    gasWidgetInterface.getPriorityFee(),
+                    gasToUse.maxFeePerGas,
+                    gasToUse.priorityFee,
                     gasWidgetInterface.getGasLimit(),
                     gasWidgetInterface.getNonce(),
                     candidateTransaction.payload,
@@ -774,13 +836,6 @@ public class ActionSheetDialog extends ActionSheet implements StandardFunctionIn
 
         actionSheetCallback.getAuthorisation(signCallback);
     }
-
-    //Takes gas estimate from calling activity (eg WalletConnectActivity) and updates dialog
-//    public void setGasEstimate(BigInteger estimate)
-//    {
-//        gasWidgetInterface.setGasEstimate(estimate);
-//        functionBar.setPrimaryButtonEnabled(true);
-//    }
 
     @Override
     public void setGasEstimate(GasEstimate estimate)

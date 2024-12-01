@@ -16,7 +16,6 @@ public abstract class EthereumNetworkBase
     public static final long BINANCE_TEST_ID = 97;
     public static final long BINANCE_MAIN_ID = 56;
     public static final long HECO_ID = 128;
-    public static final long HECO_TEST_ID = 256;
     public static final long FANTOM_ID = 250;
     public static final long FANTOM_TEST_ID = 4002;
     public static final long AVALANCHE_ID = 43114;
@@ -43,6 +42,16 @@ public abstract class EthereumNetworkBase
     public static final long OKX_ID = 66;
     public static final long ROOTSTOCK_MAINNET_ID = 30;
     public static final long ROOTSTOCK_TESTNET_ID = 31;
+    public static final long HOLESKY_ID = 17000;
+    public static final long LINEA_ID = 59144;
+    public static final long LINEA_TEST_ID = 59141;
+    public static final long POLYGON_AMOY_ID = 80002;
+    public static final long BASE_MAINNET_ID = 8453;
+    public static final long BASE_TESTNET_ID = 84532;
+    public static final long MANTLE_MAINNET_ID = 5000;
+    public static final long MANTLE_TESTNET_ID = 5003;
+    public static final long MINT_ID = 185;
+    public static final long MINT_SEPOLIA_TESTNET_ID = 1687;
 
 
     public static final String MAINNET_RPC_URL = "https://mainnet.infura.io/v3/da3717f25f824cc1baa32d812386d93f";
@@ -52,13 +61,13 @@ public abstract class EthereumNetworkBase
     public static final String BINANCE_TEST_RPC_URL = "https://data-seed-prebsc-1-s3.binance.org:8545";
     public static final String BINANCE_MAIN_RPC_URL = "https://bsc-dataseed.binance.org";
     public static final String HECO_RPC_URL = "https://http-mainnet.hecochain.com";
-    public static final String HECO_TEST_RPC_URL = "https://http-testnet.hecochain.com";
     public static final String AVALANCHE_RPC_URL = "https://api.avax.network/ext/bc/C/rpc";
     public static final String FUJI_TEST_RPC_URL = "https://api.avax-test.network/ext/bc/C/rpc";
     public static final String FANTOM_RPC_URL = "https://rpcapi.fantom.network";
     public static final String FANTOM_TEST_RPC_URL = "https://rpc.ankr.com/fantom_testnet";
     public static final String MATIC_RPC_URL = "https://matic-mainnet.chainstacklabs.com";
     public static final String MUMBAI_TEST_RPC_URL = "https://matic-mumbai.chainstacklabs.com";
+    public static final String AMOY_TEST_RPC_URL = "https://rpc-amoy.polygon.technology";
     public static final String OPTIMISTIC_MAIN_FALLBACK_URL = "https://mainnet.optimism.io";
     public static final String CRONOS_MAIN_RPC_URL = "https://evm.cronos.org";
     public static final String CRONOS_TEST_URL = "https://evm-t3.cronos.org";
@@ -79,6 +88,19 @@ public abstract class EthereumNetworkBase
     public static final String OKX_RPC_URL = "https://exchainrpc.okex.org";
     public static final String ROOTSTOCK_MAINNET_RPC_URL = "https://public-node.rsk.co";
     public static final String ROOTSTOCK_TESTNET_RPC_URL = "https://public-node.testnet.rsk.co";
+    public static final String HOLESKY_RPC_URL = "https://rpc.holesky.ethpandaops.io";
+    public static final String HOLESKY_FALLBACK_URL = "https://holesky.rpc.thirdweb.com";
+    public static final String LINEA_FREE_RPC = "https://linea.drpc.org";
+    public static final String LINEA_TEST_FREE_RPC = "https://rpc.sepolia.linea.build";
+
+    public static final String BASE_FREE_MAINNET_RPC = "https://base-rpc.publicnode.com";
+    public static final String BASE_FREE_TESTNET_RPC = "https://base-sepolia-rpc.publicnode.com";
+
+    public static final String MANTLE_MAINNET_RPC = "https://rpc.mantle.xyz";
+    public static final String MANTLE_TESTNET_RPC = "https://rpc.sepolia.mantle.xyz";
+    public static final String MINT_MAINNET_RPC = "https://global.rpc.mintchain.io";
+    public static final String MINT_SEPOLIA_RPC = "https://sepolia-testnet-rpc.mintchain.io";
+
 
     static Map<Long, NetworkInfo> networkMap = new LinkedHashMap<Long, NetworkInfo>()
     {
@@ -97,9 +119,6 @@ public abstract class EthereumNetworkBase
                     BINANCE_MAIN_ID, false));
             put(HECO_ID, new NetworkInfo("Heco", "HT", HECO_RPC_URL, "https://hecoinfo.com/tx/",
                     HECO_ID, false));
-            put(HECO_TEST_ID, new NetworkInfo("Heco (Test)", "HT", HECO_TEST_RPC_URL, "https://testnet.hecoinfo.com/tx/",
-                    HECO_TEST_ID, false));
-
             put(AVALANCHE_ID, new NetworkInfo("Avalanche Mainnet C-Chain", "AVAX", AVALANCHE_RPC_URL, "https://cchain.explorer.avax.network/tx/",
                     AVALANCHE_ID, false));
             put(FUJI_TEST_ID, new NetworkInfo("Avalanche FUJI C-Chain (Test)", "AVAX", FUJI_TEST_RPC_URL, "https://cchain.explorer.avax-test.network/tx/",
@@ -114,6 +133,8 @@ public abstract class EthereumNetworkBase
                     POLYGON_ID, false));
             put(POLYGON_TEST_ID, new NetworkInfo("Mumbai (Test)", "POLY", MUMBAI_TEST_RPC_URL, "https://mumbai.polygonscan.com/tx/",
                     POLYGON_TEST_ID, false));
+            put(POLYGON_AMOY_ID, new NetworkInfo("Amoy (Test)", "POLY", AMOY_TEST_RPC_URL, "https://amoy.polygonscan.com/tx/",
+                    POLYGON_AMOY_ID, false));
 
             put(OPTIMISTIC_MAIN_ID, new NetworkInfo("Optimistic", "ETH", OPTIMISTIC_MAIN_FALLBACK_URL, "https://optimistic.etherscan.io/tx/",
                     OPTIMISTIC_MAIN_ID, false));
@@ -126,9 +147,9 @@ public abstract class EthereumNetworkBase
                     PALM_ID, false));
             put(PALM_TEST_ID, new NetworkInfo("PALM (Test)", "PALM", PALM_TEST_RPC_URL, "https://explorer.palm-uat.xyz/tx/",
                     PALM_TEST_ID, false));
-            put(KLAYTN_ID, new NetworkInfo("Klaytn Cypress", "KLAY", KLAYTN_RPC, "https://scope.klaytn.com/tx/",
+            put(KLAYTN_ID, new NetworkInfo("Kaia Mainnet", "KAIA", KLAYTN_RPC, "https://scope.klaytn.com/tx/",
                     KLAYTN_ID, false));
-            put(KLAYTN_BAOBAB_ID, new NetworkInfo("Klaytn Baobab (Test)", "KLAY", KLAYTN_BAOBAB_RPC, "https://baobab.scope.klaytn.com/tx/",
+            put(KLAYTN_BAOBAB_ID, new NetworkInfo("Kaia Kairos (Test)", "KAIA", KLAYTN_BAOBAB_RPC, "https://baobab.scope.klaytn.com/tx/",
                     KLAYTN_BAOBAB_ID, false));
             put(AURORA_MAINNET_ID, new NetworkInfo("Aurora", "ETH", AURORA_MAINNET_RPC_URL, "https://aurorascan.dev/tx/",
                     AURORA_MAINNET_ID, false));
@@ -155,6 +176,27 @@ public abstract class EthereumNetworkBase
                     ROOTSTOCK_MAINNET_ID, false));
             put(ROOTSTOCK_TESTNET_ID, new NetworkInfo("Rootstock (Test)", "tBTC", ROOTSTOCK_TESTNET_RPC_URL, "",
                     ROOTSTOCK_TESTNET_ID, false));
+
+            put(LINEA_ID, new NetworkInfo("Linea", "ETH", LINEA_FREE_RPC, "https://lineascan.build/tx/",
+                    LINEA_ID, false));
+            put(LINEA_TEST_ID, new NetworkInfo("Linea (Test)", "ETH", LINEA_TEST_FREE_RPC, "https://sepolia.lineascan.build/tx/",
+                    LINEA_TEST_ID, false));
+            put(HOLESKY_ID, new NetworkInfo("Holesky (Test)", "HolETH", HOLESKY_RPC_URL, "https://holesky.etherscan.io/tx/",
+                    HOLESKY_ID, false));
+
+            put(BASE_MAINNET_ID, new NetworkInfo("Base", "ETH", BASE_FREE_MAINNET_RPC, "https://basescan.org/tx/",
+                    BASE_MAINNET_ID, false));
+            put(BASE_TESTNET_ID, new NetworkInfo("Base (Test)", "ETH", BASE_FREE_TESTNET_RPC, "https://sepolia.basescan.org/tx/",
+                    BASE_TESTNET_ID, false));
+            put(MANTLE_MAINNET_ID, new NetworkInfo("Mantle", "ETH", BASE_FREE_MAINNET_RPC, "https://basescan.org/tx/",
+                    MANTLE_MAINNET_ID, false));
+            put(MANTLE_TESTNET_ID, new NetworkInfo("Mantle Sepolia (Test)", "ETH", BASE_FREE_TESTNET_RPC, "https://sepolia.basescan.org/tx/",
+                    MANTLE_TESTNET_ID, false));
+
+            put(MINT_ID, new NetworkInfo("Mint", "ETH", MINT_MAINNET_RPC, "https://explorer.mintchain.io/tx/",
+                    MINT_ID, false));
+            put(MINT_SEPOLIA_TESTNET_ID, new NetworkInfo("Mint Sepolia (Test)", "ETH", MINT_SEPOLIA_RPC, "https://sepolia-testnet-explorer.mintchain.io/tx/",
+                    MINT_SEPOLIA_TESTNET_ID, false));
         }
     };
 

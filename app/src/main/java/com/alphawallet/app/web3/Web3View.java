@@ -3,7 +3,7 @@ package com.alphawallet.app.web3;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.os.Build;
+import android.net.Uri;
 import android.util.AttributeSet;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -14,7 +14,8 @@ import android.webkit.WebViewClient;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
+import androidx.webkit.WebSettingsCompat;
+import androidx.webkit.WebViewFeature;
 
 import com.alphawallet.app.BuildConfig;
 import com.alphawallet.app.entity.TransactionReturn;
@@ -139,7 +140,7 @@ public class Web3View extends WebView {
     }
 
     @Override
-    public void setWebViewClient(WebViewClient client)
+    public void setWebViewClient(@NonNull WebViewClient client)
     {
         super.setWebViewClient(new WrapWebViewClient(webViewClient, client));
     }
@@ -187,6 +188,10 @@ public class Web3View extends WebView {
         getSettings().setUserAgentString(getSettings().getUserAgentString()
                 + "AlphaWallet(Platform=Android&AppVersion=" + BuildConfig.VERSION_NAME + ")");
         WebView.setWebContentsDebuggingEnabled(true); //so devs can debug their scripts/pages
+        setInitialScale(0);
+        getSettings().setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL);
+        getSettings().setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+
         addJavascriptInterface(new SignCallbackJSInterface(
                 this,
                 innerOnSignTransactionListener,
@@ -196,22 +201,11 @@ public class Web3View extends WebView {
                 innerOnEthCallListener,
                 innerAddChainListener,
                 innerOnWalletActionListener), "alpha");
-        
-//        Removing this block for now.
-//        TODO: Figure out if we should support dark mode for external websites
-//        if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK))
-//        {
-//            switch (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
-//            {
-//                case Configuration.UI_MODE_NIGHT_YES:
-//                    WebSettingsCompat.setForceDark(getSettings(), FORCE_DARK_ON);
-//                    break;
-//                case Configuration.UI_MODE_NIGHT_NO:
-//                case Configuration.UI_MODE_NIGHT_UNDEFINED:
-//                    WebSettingsCompat.setForceDark(getSettings(), FORCE_DARK_OFF);
-//                    break;
-//            }
-//        }
+
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING))
+        {
+            WebSettingsCompat.setAlgorithmicDarkeningAllowed(getSettings(), true);
+        }
     }
 
     @Nullable
@@ -230,19 +224,18 @@ public class Web3View extends WebView {
         return webViewClient.getJsInjectorClient().getChainId();
     }
 
-    public void setChainId(long chainId)
+    public void setChainId(long chainId, boolean isTokenscript)
     {
-        webViewClient.getJsInjectorClient().setChainId(chainId);
+        if (isTokenscript){
+            webViewClient.getJsInjectorClient().setTSChainId(chainId);
+        } else {
+            webViewClient.getJsInjectorClient().setChainId(chainId);
+        }
     }
 
     public void setWebLoadCallback(URLLoadInterface iFace)
     {
         loadInterface = iFace;
-    }
-
-    public void setRpcUrl(@NonNull String rpcUrl)
-    {
-        webViewClient.getJsInjectorClient().setRpcUrl(rpcUrl);
     }
 
     public void setOnSignTransactionListener(@Nullable OnSignTransactionListener onSignTransactionListener)
@@ -372,11 +365,12 @@ public class Web3View extends WebView {
         }
 
         @Override
-        public boolean shouldOverrideUrlLoading(WebView view, String url)
-        {
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            final Uri uri = request.getUrl();
+            final String url = uri.toString();
             redirect = true;
 
-            return externalClient.shouldOverrideUrlLoading(view, url)
+            return externalClient.shouldOverrideUrlLoading(view, request)
                     || internalClient.shouldOverrideUrlLoading(view, url);
         }
 
@@ -386,16 +380,6 @@ public class Web3View extends WebView {
             loadingError = true;
             if (externalClient != null)
                 externalClient.onReceivedError(view, request, error);
-        }
-
-        @RequiresApi(api = Build.VERSION_CODES.N)
-        @Override
-        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request)
-        {
-            redirect = true;
-
-            return externalClient.shouldOverrideUrlLoading(view, request)
-                    || internalClient.shouldOverrideUrlLoading(view, request);
         }
     }
 }

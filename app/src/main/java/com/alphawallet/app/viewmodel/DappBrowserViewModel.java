@@ -1,6 +1,7 @@
 package com.alphawallet.app.viewmodel;
 
 import static com.alphawallet.app.C.Key.WALLET;
+import static com.alphawallet.app.repository.SharedPreferenceRepository.DEVELOPER_OVERRIDE;
 import static com.alphawallet.app.util.Utils.isValidUrl;
 
 import android.app.Activity;
@@ -43,7 +44,6 @@ import com.alphawallet.app.ui.ImportTokenActivity;
 import com.alphawallet.app.ui.MyAddressActivity;
 import com.alphawallet.app.ui.QRScanning.QRScannerActivity;
 import com.alphawallet.app.ui.SendActivity;
-import com.alphawallet.app.ui.WalletConnectActivity;
 import com.alphawallet.app.ui.WalletConnectV2Activity;
 import com.alphawallet.app.util.DappBrowserUtils;
 import com.alphawallet.app.walletconnect.util.WalletConnectHelper;
@@ -320,7 +320,7 @@ public class DappBrowserViewModel extends BaseViewModel implements TransactionSe
     @Override
     public void transactionSigned(SignatureFromKey sigData, Web3Transaction w3Tx)
     {
-        transactionSigned.postValue(new TransactionReturn(com.alphawallet.token.tools.Numeric.toHexString(sigData.signature), w3Tx));
+        transactionSigned.postValue(new TransactionReturn(Numeric.toHexString(sigData.signature), w3Tx));
     }
 
     public void showMyAddress(Context ctx)
@@ -366,16 +366,7 @@ public class DappBrowserViewModel extends BaseViewModel implements TransactionSe
 
     public void handleWalletConnect(Context context, String url, NetworkInfo activeNetwork)
     {
-        Intent intent;
-        if (WalletConnectHelper.isWalletConnectV1(url))
-        {
-            intent = getIntentOfWalletConnectV1(context, url, activeNetwork);
-        }
-        else
-        {
-            intent = getIntentOfWalletConnectV2(context, url);
-        }
-
+        Intent intent = getIntentOfWalletConnectV2(context, url);
         context.startActivity(intent);
     }
 
@@ -384,17 +375,6 @@ public class DappBrowserViewModel extends BaseViewModel implements TransactionSe
     {
         Intent intent = new Intent(context, WalletConnectV2Activity.class);
         intent.putExtra("url", url);
-        return intent;
-    }
-
-    @NonNull
-    private Intent getIntentOfWalletConnectV1(Context context, String url, NetworkInfo activeNetwork)
-    {
-        String importPassData = WalletConnectActivity.WC_LOCAL_PREFIX + url;
-        Intent intent = new Intent(context, WalletConnectActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-        intent.putExtra(C.EXTRA_CHAIN_ID, activeNetwork.chainId);
-        intent.putExtra("qrCode", importPassData);
         return intent;
     }
 
@@ -414,12 +394,6 @@ public class DappBrowserViewModel extends BaseViewModel implements TransactionSe
             return gasService.calculateGasEstimate(Numeric.hexStringToByteArray(transaction.payload), chainId,
                     transaction.recipient.toString(), transaction.value, wallet, transaction.gasLimit);
         }
-    }
-
-    // Use the backup node if avail
-    public String getNetworkNodeRPC(long chainId)
-    {
-        return ethereumNetworkRepository.getDappBrowserRPC(chainId);
     }
 
     public NetworkInfo getNetworkInfo(long chainId)
@@ -502,5 +476,15 @@ public class DappBrowserViewModel extends BaseViewModel implements TransactionSe
         }
 
         tokensService.setupFilter(true);
+    }
+
+    public GasService getGasService()
+    {
+        return gasService;
+    }
+
+    public boolean getDeveloperOverrideState(Context context)
+    {
+        return PreferenceManager.getDefaultSharedPreferences(context).getBoolean(DEVELOPER_OVERRIDE, false);
     }
 }

@@ -16,10 +16,15 @@ import androidx.annotation.Nullable;
 
 import com.alphawallet.app.R;
 import com.alphawallet.app.entity.ActionSheetInterface;
+import com.alphawallet.app.service.SignatureLookupService;
 import com.alphawallet.app.web3.entity.Web3Transaction;
-import com.alphawallet.token.tools.Numeric;
 
 import org.jetbrains.annotations.NotNull;
+import org.web3j.utils.Numeric;
+
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
 
 public class TransactionDetailWidget extends LinearLayout
 {
@@ -31,6 +36,8 @@ public class TransactionDetailWidget extends LinearLayout
     private final LinearLayout layoutHeader;
     private final ProgressBar progressBar;
     private ActionSheetInterface sheetInterface;
+
+    private Disposable disposable;
 
     public TransactionDetailWidget(Context context, @Nullable AttributeSet attrs)
     {
@@ -46,27 +53,37 @@ public class TransactionDetailWidget extends LinearLayout
     }
 
     public void setupTransaction(Web3Transaction w3tx, long chainId, String symbol,
-                                 @NotNull ActionSheetInterface asIf, String functionName)
+                                 @NotNull ActionSheetInterface asIf)
     {
         progressBar.setVisibility(View.GONE);
         textTransactionSummary.setVisibility(View.VISIBLE);
         textFullDetails.setText(w3tx.getFormattedTransaction(getContext(), chainId, symbol));
         sheetInterface = asIf;
 
-        if (!TextUtils.isEmpty(functionName))
-        {
-            textTransactionSummary.setText(functionName);
-            textFunctionName.setText(functionName);
-        }
-        else if (!TextUtils.isEmpty(w3tx.description))
+        if (!TextUtils.isEmpty(w3tx.description))
         {
             textTransactionSummary.setText(w3tx.description);
         }
         else
         {
-            String displayText = ("0x" + Numeric.cleanHexPrefix(w3tx.payload)).substring(0, 10);
+            String displayText = (Numeric.prependHexPrefix(w3tx.payload)).substring(0, 10);
             textTransactionSummary.setText(displayText);
             textFunctionName.setText(displayText);
+        }
+
+        if (w3tx.isConstructor())
+        {
+            String constructor = getContext().getString(R.string.constructor);
+            textTransactionSummary.setText(constructor);
+            textFunctionName.setText(constructor);
+        }
+        else
+        {
+            SignatureLookupService svc = new SignatureLookupService();
+            disposable = svc.getFunctionName(w3tx.payload)
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribeOn(Schedulers.io())
+                    .subscribe(this::onResult, error -> { });
         }
 
         layoutHolder.setOnClickListener(v -> {
@@ -83,5 +100,22 @@ public class TransactionDetailWidget extends LinearLayout
                 sheetInterface.lockDragging(false);
             }
         });
+    }
+
+    public void onDestroy()
+    {
+        if (disposable != null && !disposable.isDisposed())
+        {
+            disposable.dispose();
+        }
+    }
+
+    private void onResult(String functionName)
+    {
+        if (!TextUtils.isEmpty(functionName))
+        {
+            textTransactionSummary.setText(functionName);
+            textFunctionName.setText(functionName);
+        }
     }
 }

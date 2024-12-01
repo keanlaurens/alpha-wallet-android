@@ -34,11 +34,25 @@ public interface KeyProvider
 
     String getInfuraSecret();
 
+    String getTSInfuraKey();
+
     String getUnstoppableDomainsKey();
 
     String getOkLinkKey();
 
+    String getOkLBKey();
+
     String getBlockPiBaobabKey();
 
     String getBlockPiCypressKey();
+
+    String getBlockNativeKey();
+
+    String getSmartPassKey();
+
+    String getSmartPassDevKey();
+
+    String getCoinGeckoKey();
+
+    String getBackupKey();
 }

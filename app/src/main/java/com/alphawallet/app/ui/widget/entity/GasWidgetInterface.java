@@ -23,9 +23,16 @@ public interface GasWidgetInterface
     BigInteger getPriorityFee();
     BigInteger getGasPrice();
     void setGasEstimate(BigInteger estimate);
+    void setGasEstimateExact(BigInteger estimate);
     void onDestroy();
     boolean checkSufficientGas();
     void setupResendSettings(ActionSheetMode mode, BigInteger gasPrice);
     void setCurrentGasIndex(int gasSelectionIndex, BigInteger maxFeePerGas, BigInteger maxPriorityFee, BigDecimal customGasLimit, long expectedTxTime, long customNonce);
     long getExpectedTransactionTime();
+    default boolean gasPriceReady(long gasEstimateTime)
+    {
+        return gasEstimateTime > (System.currentTimeMillis() - 30 * 1000);
+    }
+
+    boolean gasPriceReady();
 }

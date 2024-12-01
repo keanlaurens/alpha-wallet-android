@@ -299,7 +299,7 @@ public class TransactionInput
             case UNKNOWN_FUNCTION:
             case INVALID_OPERATION:
             default:
-                address = tx.from;
+                address = tx.to;
                 break;
         }
 
@@ -324,7 +324,7 @@ public class TransactionInput
             byte[] tradeBytes = parser.getTradeBytes(ticketIndexArray, contractAddress, priceWei, expiry);
             //attempt ecrecover
             BigInteger key = Sign.signedMessageToKey(tradeBytes, sig);
-            address = "0x" + Keys.getAddress(key);
+            address = Numeric.prependHexPrefix(Keys.getAddress(key));
         }
         catch (Exception e)
         {
@@ -620,11 +620,11 @@ public class TransactionInput
         {
             if (!token.isEthereum())
             {
-                operationValue = operationValue + " " + token.getSymbol();
+                operationValue = operationValue + " " + token.getShortSymbol();
             }
             else if (!TextUtils.isEmpty(operationValue))
             {
-                operationValue = operationValue + " " + token.getSymbol();
+                operationValue = operationValue + " " + token.getShortSymbol();
             }
             else
             {

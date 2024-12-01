@@ -17,7 +17,6 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -49,8 +48,6 @@ import com.alphawallet.app.widget.FunctionButtonBar;
 import com.alphawallet.app.widget.InputAddress;
 import com.alphawallet.app.widget.TestNetDialog;
 import com.alphawallet.token.tools.ParseMagicLink;
-import com.journeyapps.barcodescanner.ScanContract;
-import com.journeyapps.barcodescanner.ScanOptions;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -329,7 +326,7 @@ public class AddTokenActivity extends BaseActivity implements AddressReadyCallba
         HashSet<Long> chainsNotEnabled = new HashSet<>();
         for (TokenCardMeta token : selected)
         {
-            NetworkInfo info = viewModel.ethereumNetworkRepository().getNetworkByChain(token.getChain());
+            NetworkInfo info = viewModel.getNetworkInfo(token.getChain());
             if (!activeChains.contains(info.chainId))
             {
                 chainsNotEnabled.add(info.chainId);
@@ -550,7 +547,7 @@ public class AddTokenActivity extends BaseActivity implements AddressReadyCallba
 
         for (TokenCardMeta token : adapter.getSelected())
         {
-            NetworkInfo info = viewModel.ethereumNetworkRepository().getNetworkByChain(token.getChain());
+            NetworkInfo info = viewModel.getNetworkInfo(token.getChain());
             selectedChains.add(info.chainId);
         }
 

@@ -1,5 +1,6 @@
 package com.alphawallet.app.ui;
 
+import static com.alphawallet.app.C.ALPHAWALLET_WEB;
 import static com.alphawallet.app.C.ETHER_DECIMALS;
 import static com.alphawallet.app.C.RESET_TOOLBAR;
 import static com.alphawallet.app.entity.tokens.Token.TOKEN_BALANCE_PRECISION;
@@ -38,6 +39,7 @@ import android.webkit.ValueCallback;
 import android.webkit.WebBackForwardList;
 import android.webkit.WebChromeClient;
 import android.webkit.WebHistoryItem;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
@@ -72,7 +74,6 @@ import com.alphawallet.app.entity.SignAuthenticationCallback;
 import com.alphawallet.app.entity.TransactionReturn;
 import com.alphawallet.app.entity.URLLoadInterface;
 import com.alphawallet.app.entity.Wallet;
-import com.alphawallet.app.entity.WalletConnectActions;
 import com.alphawallet.app.entity.WalletType;
 import com.alphawallet.app.entity.analytics.ActionSheetSource;
 import com.alphawallet.app.entity.analytics.QrScanResultType;
@@ -82,7 +83,7 @@ import com.alphawallet.app.repository.EthereumNetworkRepository;
 import com.alphawallet.app.repository.TokenRepository;
 import com.alphawallet.app.repository.TokensRealmSource;
 import com.alphawallet.app.repository.entity.RealmToken;
-import com.alphawallet.app.service.WalletConnectService;
+import com.alphawallet.app.service.GasService;
 import com.alphawallet.app.ui.QRScanning.QRScannerActivity;
 import com.alphawallet.app.ui.widget.OnDappHomeNavClickListener;
 import com.alphawallet.app.ui.widget.entity.ActionSheetCallback;
@@ -120,13 +121,13 @@ import com.alphawallet.token.entity.EthereumTypedMessage;
 import com.alphawallet.token.entity.SalesOrderMalformed;
 import com.alphawallet.token.entity.SignMessageType;
 import com.alphawallet.token.entity.Signable;
-import com.alphawallet.token.tools.Numeric;
 import com.alphawallet.token.tools.ParseMagicLink;
 
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.methods.response.EthCall;
+import org.web3j.utils.Numeric;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -218,7 +219,7 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
     // Need to handle the inverse event where the keyboard is hidden, and we size the page back
     // (Remembering to allow for the navigation bar).
     private final View.OnApplyWindowInsetsListener resizeListener = (v, insets) -> {
-        if (v == null || getActivity() == null)
+        if (getActivity() == null)
         {
             return insets;
         }
@@ -619,6 +620,7 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
                 startBalanceListener();
                 viewModel.updateGasPrice(activeNetwork.chainId);
             }
+            viewModel.getTokenService().stopUpdateCycle();
         }
         addressBar.leaveEditMode();
     }
@@ -719,10 +721,10 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
     private void onDefaultWallet(Wallet wallet)
     {
         this.wallet = wallet;
-        if (activeNetwork != null)
+        if (activeNetwork != null && wallet != null)
         {
             boolean needsReload = loadOnInit == null;
-            setupWeb3();
+            setupWeb3(wallet);
             if (needsReload) reloadPage();
         }
     }
@@ -743,7 +745,7 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
         updateNetworkMenuItem();
         viewModel.setNetwork(chainId);
         startBalanceListener();
-        setupWeb3();
+        setupWeb3(wallet);
         web3.resetView();
         web3.reload();
     }
@@ -788,11 +790,11 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
 
     private void launchWalletConnectSessionCancel()
     {
-        String sessionId = walletConnectSession != null ? viewModel.getSessionId(walletConnectSession) : "";
+        /*String sessionId = walletConnectSession != null ? viewModel.getSessionId(walletConnectSession) : "";
         Intent bIntent = new Intent(getContext(), WalletConnectService.class);
         bIntent.setAction(String.valueOf(WalletConnectActions.CLOSE.ordinal()));
         bIntent.putExtra("session", sessionId);
-        requireActivity().startService(bIntent);
+        requireActivity().startService(bIntent);*/
         reloadPage();
     }
 
@@ -814,10 +816,10 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
         });
     }
 
-    private void setupWeb3()
+    private void setupWeb3(Wallet wallet)
     {
-        web3.setChainId(activeNetwork.chainId);
-        web3.setRpcUrl(viewModel.getNetworkNodeRPC(activeNetwork.chainId));
+        if (wallet == null) { return; }
+        web3.setChainId(activeNetwork.chainId, false);
         web3.setWalletAddress(new Address(wallet.address));
 
         web3.setWebChromeClient(new WebChromeClient()
@@ -894,66 +896,11 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
         web3.setWebViewClient(new WebViewClient()
         {
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url)
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request)
             {
-                String[] prefixCheck = url.split(":");
-                if (prefixCheck.length > 1)
-                {
-                    Intent intent;
-                    switch (prefixCheck[0])
-                    {
-                        case C.DAPP_PREFIX_TELEPHONE:
-                            intent = new Intent(Intent.ACTION_DIAL);
-                            intent.setData(Uri.parse(url));
-                            startActivity(Intent.createChooser(intent, "Call " + prefixCheck[1]));
-                            return true;
-                        case C.DAPP_PREFIX_MAILTO:
-                            intent = new Intent(Intent.ACTION_SENDTO);
-                            intent.setData(Uri.parse(url));
-                            startActivity(Intent.createChooser(intent, "Email: " + prefixCheck[1]));
-                            return true;
-                        case C.DAPP_PREFIX_ALPHAWALLET:
-                            if (prefixCheck[1].equals(C.DAPP_SUFFIX_RECEIVE))
-                            {
-                                viewModel.showMyAddress(getContext());
-                                return true;
-                            }
-                            break;
-                        case C.DAPP_PREFIX_WALLETCONNECT:
-                            //start walletconnect
-                            if (wallet.type == WalletType.WATCH)
-                            {
-                                showWalletWatch();
-                            }
-                            else
-                            {
-                                walletConnectSession = url;
-                                if (getContext() != null)
-                                    viewModel.handleWalletConnect(getContext(), url, activeNetwork);
-                            }
-                            return true;
-                        default:
-                            break;
-                    }
-                }
-
-                if (fromWalletConnectModal(url))
-                {
-                    String encodedURL = url.split("=")[1];
-                    try
-                    {
-                        String decodedURL = URLDecoder.decode(encodedURL, Charset.defaultCharset().name());
-                        viewModel.handleWalletConnect(getContext(), decodedURL, activeNetwork);
-                        return true;
-                    }
-                    catch (UnsupportedEncodingException e)
-                    {
-                        Timber.d("Decode URL failed: " + e);
-                    }
-                }
-
-                setUrlText(url);
-                return false;
+                final Uri uri = request.getUrl();
+                final String url = uri.toString();
+                return handlePrefix(url);
             }
         });
 
@@ -974,6 +921,77 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
             setUrlText(Utils.formatUrl(loadOnInit));
             loadOnInit = null;
         }
+    }
+
+    private boolean handlePrefix(String url)
+    {
+        String[] prefixCheck = url.split(":");
+        if (prefixCheck.length > 1)
+        {
+            Intent intent;
+            switch (prefixCheck[0])
+            {
+                case C.DAPP_PREFIX_TELEPHONE:
+                    intent = new Intent(Intent.ACTION_DIAL);
+                    intent.setData(Uri.parse(url));
+                    startActivity(Intent.createChooser(intent, "Call " + prefixCheck[1]));
+                    return true;
+                case C.DAPP_PREFIX_MAILTO:
+                    intent = new Intent(Intent.ACTION_SENDTO);
+                    intent.setData(Uri.parse(url));
+                    startActivity(Intent.createChooser(intent, "Email: " + prefixCheck[1]));
+                    return true;
+                case C.DAPP_PREFIX_ALPHAWALLET:
+                    if (prefixCheck[1].equals(C.DAPP_SUFFIX_RECEIVE))
+                    {
+                        viewModel.showMyAddress(getContext());
+                        return true;
+                    }
+                    break;
+                case C.DAPP_PREFIX_AWALLET:
+                    handleAWCode(url);
+                    return true;
+                case C.DAPP_PREFIX_WALLETCONNECT:
+                    //start walletconnect
+                    if (wallet.type == WalletType.WATCH)
+                    {
+                        showWalletWatch();
+                    }
+                    else
+                    {
+                        walletConnectSession = url;
+                        if (getContext() != null)
+                            viewModel.handleWalletConnect(getContext(), url, activeNetwork);
+                    }
+                    return true;
+                default:
+                    break;
+            }
+        }
+
+        if (fromWalletConnectModal(url))
+        {
+            String encodedURL = url.split("=")[1];
+            try
+            {
+                String decodedURL = URLDecoder.decode(encodedURL, Charset.defaultCharset().name());
+                viewModel.handleWalletConnect(getContext(), decodedURL, activeNetwork);
+                return true;
+            }
+            catch (UnsupportedEncodingException e)
+            {
+                Timber.d("Decode URL failed: %s", e.getMessage());
+            }
+        }
+
+        return false;
+    }
+
+    private void handleAWCode(String awCode)
+    {
+        Bundle codeBundle = new Bundle();
+        codeBundle.putString(C.AWALLET_CODE, awCode);
+        getParentFragmentManager().setFragmentResult(C.AWALLET_CODE, codeBundle);
     }
 
     private boolean fromWalletConnectModal(String url)
@@ -1235,6 +1253,12 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
     }
 
     @Override
+    public GasService getGasService()
+    {
+        return viewModel.getGasService();
+    }
+
+    @Override
     public void onSignTransaction(Web3Transaction transaction, String url)
     {
         try
@@ -1462,14 +1486,34 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
 
     private boolean loadUrl(String urlText)
     {
+        requireContext();
         AnalyticsProperties props = new AnalyticsProperties();
         props.put(Analytics.PROPS_URL, urlText);
         viewModel.track(Analytics.Action.LOAD_URL, props);
 
+        // ensure the URL is whitelisted, that is it is featured in the dapp list, and check if the app is in developer override mode
+        if (!viewModel.getDeveloperOverrideState(getContext()) && !DappBrowserUtils.isInDappsList(this.getContext(), urlText))
+        {
+            //reset url string back to AlphaWallet
+            setUrlText(ALPHAWALLET_WEB);
+
+            //display a warning dialog
+            displayError(R.string.title_dialog_error, R.string.not_recommended_to_visit);
+            return false;
+        }
+
         detachFragments();
         addToBackStack(DAPP_BROWSER);
         cancelSearchSession();
-        if (checkForMagicLink(urlText)) return true;
+        if (checkForMagicLink(urlText))
+        {
+            return true;
+        }
+        else if (handlePrefix(urlText))
+        {
+            return true;
+        }
+
         web3.resetView();
         web3.loadUrl(Utils.formatUrl(urlText));
         setUrlText(Utils.formatUrl(urlText));
@@ -1505,7 +1549,7 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
 
     public void reloadPage()
     {
-        if (currentFragment.equals(DAPP_BROWSER))
+        if (currentFragment != null && currentFragment.equals(DAPP_BROWSER))
         {
             if (refresh != null)
             {
@@ -1922,7 +1966,11 @@ public class DappBrowserFragment extends BaseFragment implements OnSignTransacti
 
     private void txWritten(TransactionReturn txData)
     {
-        confirmationDialog.transactionWritten(txData.hash);
+        if (confirmationDialog != null && confirmationDialog.isShowing())
+        {
+            confirmationDialog.transactionWritten(txData.hash);
+        }
+
         web3.onSignTransactionSuccessful(txData);
     }
 

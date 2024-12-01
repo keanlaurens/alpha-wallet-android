@@ -37,6 +37,7 @@ import com.alphawallet.app.entity.analytics.QrScanResultType;
 import com.alphawallet.app.entity.analytics.QrScanSource;
 import com.alphawallet.app.entity.cryptokeys.KeyEncodingType;
 import com.alphawallet.app.repository.EthereumNetworkBase;
+import com.alphawallet.app.router.HomeRouter;
 import com.alphawallet.app.service.KeyService;
 import com.alphawallet.app.ui.QRScanning.QRScannerActivity;
 import com.alphawallet.app.ui.widget.OnImportKeystoreListener;
@@ -329,8 +330,7 @@ public class ImportWalletActivity extends BaseActivity implements OnImportSeedLi
     {
         if (item.getItemId() == android.R.id.home && currentPage == ImportType.KEYSTORE_FORM_INDEX)
         {
-            if (((ImportKeystoreFragment) pages.get(ImportType.KEYSTORE_FORM_INDEX.ordinal()).second).backPressed())
-                return true;
+            return (((ImportKeystoreFragment) pages.get(ImportType.KEYSTORE_FORM_INDEX.ordinal()).second).backPressed());
         }
         else if (item.getItemId() == R.id.action_scan)
         {
@@ -341,6 +341,19 @@ public class ImportWalletActivity extends BaseActivity implements OnImportSeedLi
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public void handleBackPressed()
+    {
+        if (currentPage == ImportType.KEYSTORE_FORM_INDEX)
+        {
+            ((ImportKeystoreFragment) pages.get(ImportType.KEYSTORE_FORM_INDEX.ordinal()).second).backPressed();
+        }
+        else
+        {
+            finish();
+        }
     }
 
     @Override
@@ -572,7 +585,7 @@ public class ImportWalletActivity extends BaseActivity implements OnImportSeedLi
         try
         {
             JSONObject jsonObject = new JSONObject(store);
-            return "0x" + Numeric.cleanHexPrefix(jsonObject.getString("address"));
+            return Numeric.prependHexPrefix(jsonObject.getString("address"));
         }
         catch (JSONException ex)
         {

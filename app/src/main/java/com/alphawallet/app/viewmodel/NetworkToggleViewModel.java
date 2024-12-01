@@ -75,11 +75,6 @@ public class NetworkToggleViewModel extends BaseViewModel
         return networkRepository.getNetworkByChain(chainId);
     }
 
-    public boolean testnetEnabled()
-    {
-        return preferenceRepository.isTestnetEnabled();
-    }
-
     public List<NetworkItem> getNetworkList(boolean isMainNet)
     {
         List<NetworkItem> networkList = new ArrayList<>();
@@ -87,7 +82,7 @@ public class NetworkToggleViewModel extends BaseViewModel
 
         for (NetworkInfo info : getNetworkList())
         {
-            if (EthereumNetworkRepository.hasRealValue(info.chainId) == isMainNet)
+            if (info != null && EthereumNetworkRepository.hasRealValue(info.chainId) == isMainNet)
             {
                 networkList.add(new NetworkItem(info.name, info.chainId, filterIds.contains(info.chainId)));
             }

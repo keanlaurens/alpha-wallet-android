@@ -5,7 +5,6 @@ import static com.alphawallet.app.repository.TokenRepository.callSmartContractFu
 import static com.alphawallet.app.util.Utils.parseTokenId;
 import static org.web3j.tx.Contract.staticExtractEventParameters;
 
-import android.app.Activity;
 import android.util.Pair;
 
 import com.alphawallet.app.R;
@@ -23,7 +22,6 @@ import com.alphawallet.app.repository.entity.RealmNFTAsset;
 import com.alphawallet.app.repository.entity.RealmToken;
 import com.alphawallet.app.service.TransactionsService;
 import com.alphawallet.app.util.Utils;
-import com.alphawallet.app.viewmodel.BaseViewModel;
 
 import org.web3j.abi.EventEncoder;
 import org.web3j.abi.EventValues;
@@ -547,12 +545,6 @@ public class ERC1155Token extends Token
     }
 
     @Override
-    public void clickReact(BaseViewModel viewModel, Activity activity)
-    {
-        viewModel.showTokenList(activity, this);
-    }
-
-    @Override
     public void setAssetContract(AssetContract contract)
     {
         assetContract = contract;
@@ -649,7 +641,7 @@ public class ERC1155Token extends Token
 
         filter.addSingleTopic(null);
         filter.addSingleTopic(null);
-        filter.addSingleTopic("0x" + TypeEncoder.encode(new Address(getWallet()))); //listen for events 'to' the wallet
+        filter.addSingleTopic(Numeric.prependHexPrefix(TypeEncoder.encode(new Address(getWallet())))); //listen for events 'to' the wallet
         return filter;
     }
 
@@ -664,7 +656,7 @@ public class ERC1155Token extends Token
                         .addSingleTopic(EventEncoder.encode(event)); // send event format
 
         filter.addSingleTopic(null);
-        filter.addSingleTopic("0x" + TypeEncoder.encode(new Address(getWallet()))); //listen for events 'from' the wallet
+        filter.addSingleTopic(Numeric.prependHexPrefix(TypeEncoder.encode(new Address(getWallet())))); //listen for events 'from' the wallet
         filter.addSingleTopic(null);
         return filter;
     }
@@ -820,6 +812,22 @@ public class ERC1155Token extends Token
         return getBaseTokenId(tokenId).compareTo(BigInteger.ZERO) > 0
                 && getNFTTokenId(tokenId).compareTo(BigInteger.valueOf(0xFFFF)) < 0
                 && getNFTTokenId(tokenId).compareTo(BigInteger.ZERO) > 0;
+    }
+
+    @Override
+    public String getFirstImageUrl()
+    {
+        if (assets != null && !assets.isEmpty() && assets.values().stream().findFirst().isPresent())
+        {
+            //get first asset
+            NFTAsset firstAsset = assets.values().stream().findFirst().get();
+            if (firstAsset.hasImageAsset())
+            {
+                return firstAsset.getThumbnail();
+            }
+        }
+
+        return "";
     }
 
     @Override

@@ -49,6 +49,7 @@ import com.alphawallet.token.entity.TSAction;
 import com.alphawallet.token.entity.TicketRange;
 import com.alphawallet.token.entity.ViewType;
 import com.alphawallet.token.entity.XMLDsigDescriptor;
+import com.alphawallet.token.tools.TokenDefinition;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -182,7 +183,7 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
     {
         if (fetchedViewHeight < 100)
         {
-            initWebViewCheck();
+            initWebViewCheck(viewModel.getAssetDefinitionService().getAssetDefinition(token));
             handler.postDelayed(this, TOKEN_SIZING_DELAY); //wait 3 seconds until ending height check
         }
         else
@@ -192,17 +193,17 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
         }
     }
 
-    private void onNewScript(Boolean aBoolean)
+    private void onNewScript(TokenDefinition td)
     {
         //need to reload tokens, now we have an updated/new script
-        if (viewModel.getAssetDefinitionService().hasDefinition(token))
+        if (td != null && td.isChanged())
         {
-            initWebViewCheck();
+            initWebViewCheck(td);
             handler.postDelayed(this, TOKEN_SIZING_DELAY);
         }
     }
 
-    private void initWebViewCheck()
+    private void initWebViewCheck(TokenDefinition td)
     {
         checkVal = 0;
         itemViewHeight = 0;
@@ -211,7 +212,8 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
         {
             BigInteger  tokenId = token.getArrayBalance().get(0);
             TicketRange data    = new TicketRange(tokenId, token.getAddress());
-            testView.renderTokenscriptView(token, data, viewModel.getAssetDefinitionService(), ViewType.ITEM_VIEW);
+            testView.setChainId(token.tokenInfo.chainId);
+            testView.renderTokenScriptInfoView(token, data, viewModel.getAssetDefinitionService(), ViewType.ITEM_VIEW, td);
             testView.setOnReadyCallback(this);
         }
         else
@@ -576,5 +578,11 @@ public class AssetDisplayActivity extends BaseActivity implements StandardFuncti
     public WalletType getWalletType()
     {
         return wallet.type;
+    }
+
+    @Override
+    public GasService getGasService()
+    {
+        return viewModel.getGasService();
     }
 }

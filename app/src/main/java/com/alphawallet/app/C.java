@@ -19,6 +19,7 @@ public abstract class C {
     public static final int SEND_INTENT_REQUEST_CODE = 4;
     public static final int TERMINATE_ACTIVITY = 5;
     public static final int ADDED_TOKEN_RETURN = 9;
+    public static final int STANDARD_POPUP_INACTIVITY_DISMISS = 15*1000; //Standard dismiss after 15 seconds
 
     public static final String ETHEREUM_NETWORK_NAME = "Ethereum";
     public static final String CLASSIC_NETWORK_NAME = "Ethereum Classic";
@@ -27,7 +28,6 @@ public abstract class C {
     public static final String BINANCE_TEST_NETWORK = "BSC TestNet";
     public static final String BINANCE_MAIN_NETWORK = "Binance (BSC)";
     public static final String HECO_MAIN_NETWORK = "Heco";
-    public static final String HECO_TEST_NETWORK = "Heco (Test)";
     public static final String FANTOM_NETWORK = "Fantom Opera";
     public static final String FANTOM_TEST_NETWORK = "Fantom (Test)";
     public static final String AVALANCHE_NETWORK = "Avalanche";
@@ -40,8 +40,8 @@ public abstract class C {
     public static final String ARBITRUM_ONE_NETWORK = "Arbitrum One";
     public static final String PALM_NAME = "PALM";
     public static final String PALM_TEST_NAME = "PALM (Test)";
-    public static final String KLAYTN_NAME = "Klaytn Cypress";
-    public static final String KLAYTN_BAOBAB_NAME = "Klaytn Baobab (Test)";
+    public static final String KLAYTN_NAME = "Kaia Mainnet";
+    public static final String KLAYTN_BAOBAB_NAME = "Kaia Kairos (Test)";
     public static final String IOTEX_NAME = "IoTeX";
     public static final String IOTEX_TESTNET_NAME = "IoTeX (Test)";
     public static final String AURORA_MAINNET_NAME = "Aurora";
@@ -54,6 +54,17 @@ public abstract class C {
     public static final String OKX_NETWORK_NAME = "OKXChain Mainnet";
     public static final String ROOTSTOCK_NETWORK_NAME = "Rootstock";
     public static final String ROOTSTOCK_TESTNET_NAME = "Rootstock (Test)";
+    public static final String LINEA_NAME = "Linea";
+    public static final String LINEA_TESTNET_NAME = LINEA_NAME + " (Test)";
+    public static final String HOLESKY_TESTNET_NAME = "Holesky (Test)";
+
+    public static final String AMOY_TESTNET_NAME = "Amoy (Test)";
+    public static final String BASE_MAINNET_NAME = "Base";
+    public static final String BASE_TESTNET_NAME = "Base Sepolia (Test)";
+    public static final String MANTLE_MAINNET_NAME = "Mantle";
+    public static final String MANTLE_TESTNET_NAME = "Mantle Sepolia (Test)";
+    public static final String MINT_MAINNET_NAME = "Mint";
+    public static final String MINT_TESTNET_NAME = "Mint Sepolia (Test)";
 
     public static final String ETHEREUM_TICKER_NAME = "ethereum";
     public static final String CLASSIC_TICKER_NAME = "ethereum-classic";
@@ -64,6 +75,8 @@ public abstract class C {
 
     public static final String USD_SYMBOL = "$";
     public static final String ETH_SYMBOL = "ETH";
+
+    public static final String MANTLE_SYMBOL = "MNT";
     public static final String xDAI_SYMBOL = "xDai";
     public static final String ETC_SYMBOL = "ETC";
     public static final String GOERLI_SYMBOL = "GÖETH";
@@ -76,7 +89,7 @@ public abstract class C {
     public static final String CRONOS_TEST_SYMBOL = "tCRO";
     public static final String ARBITRUM_SYMBOL = "AETH";
     public static final String PALM_SYMBOL = "PALM";
-    public static final String KLAYTN_SYMBOL = "KLAY";
+    public static final String KLAYTN_SYMBOL = "KAIA";
     public static final String IOTEX_SYMBOL = "IOTX";
     public static final String MILKOMEDA_SYMBOL = "milkADA";
     public static final String MILKOMEDA_TEST_SYMBOL = "milktADA";
@@ -86,6 +99,9 @@ public abstract class C {
     public static final String OKX_SYMBOL = "OKT";
     public static final String ROOTSTOCK_SYMBOL = "RBTC";
     public static final String ROOTSTOCK_TEST_SYMBOL = "tBTC";
+    public static final String HOLESKY_TEST_SYMBOL = "Hol" + ETH_SYMBOL;
+
+    public static final String AMOY_TESTNET_SYMBOL = "Am" + ETH_SYMBOL;
 
     public static final String BURN_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -207,6 +223,7 @@ public abstract class C {
     public static final String APP_FOREGROUND_STATE = "com.alphawallet.APP_FOREGROUND_STATE";
     public static final String EXTRA_APP_FOREGROUND = "com.alphawallet.IS_FOREGORUND";
     public static final String QRCODE_SCAN = "com.alphawallet.QRSCAN";
+    public static final String AWALLET_CODE = "com.alphawallet.AWALLET";
     public static final String SIGNAL_NFT_SYNC = "com.alphawallet.SYNC_NFT";
     public static final String SYNC_STATUS = "com.alphawallet.SYNC_STATUS";
 
@@ -229,13 +246,13 @@ public abstract class C {
 
     public static final String DEFAULT_NETWORK = ETHEREUM_NETWORK_NAME;
 
-    public static final String TELEGRAM_PACKAGE_NAME = "org.telegram.messenger";
     public static final String TWITTER_PACKAGE_NAME = "com.twitter.android";
     public static final String FACEBOOK_PACKAGE_NAME = "com.facebook.katana";
     public static final String LINKEDIN_PACKAGE_NAME = "com.linkedin.android";
     public static final String REDDIT_PACKAGE_NAME = "com.reddit.frontpage";
     public static final String INSTAGRAM_PACKAGE_NAME = "com.instagram.android";
     public static final String FROM_NOTIFICATION = "from_notification";
+    public static final int SHORT_SYMBOL_LENGTH = 5;
 
     public interface ErrorCode {
 
@@ -273,6 +290,7 @@ public abstract class C {
     public static final String DAPP_SUFFIX_RECEIVE = "receive";
     public static final String DAPP_PREFIX_MAPS = "maps.google.com/maps?daddr=";
     public static final String DAPP_PREFIX_WALLETCONNECT = "wc";
+    public static final String DAPP_PREFIX_AWALLET = "awallet";
 
     public static final String ENS_SCAN_BLOCK = "ens_check_block";
     public static final String ENS_HISTORY = "ensHistory";
@@ -308,23 +326,8 @@ public abstract class C {
 
     // OpenSea APIs
     public static final String OPENSEA_COLLECTION_API_MAINNET = "https://api.opensea.io/collection/";
-
-    public static final String OPENSEA_ASSETS_API_MAINNET = "https://api.opensea.io/api/v1/assets";
-    public static final String OPENSEA_ASSETS_API_TESTNET = "https://testnets-api.opensea.io/api/v1/assets";
-    public static final String OPENSEA_ASSETS_API_MATIC = "https://api.opensea.io/api/v2/assets/matic";
-    public static final String OPENSEA_ASSETS_API_ARBITRUM = "https://api.opensea.io/api/v2/assets/arbitrum";
-    public static final String OPENSEA_ASSETS_API_AVALANCHE = "https://api.opensea.io/api/v2/assets/avalanche";
-    public static final String OPENSEA_ASSETS_API_KLAYTN = "https://api.opensea.io/api/v2/assets/klaytn";
-    public static final String OPENSEA_ASSETS_API_OPTIMISM = "https://api.opensea.io/api/v2/assets/optimism";
-
-    public static final String OPENSEA_SINGLE_ASSET_API_MAINNET = "https://api.opensea.io/api/v1/asset/";
-    public static final String OPENSEA_SINGLE_ASSET_API_TESTNET = "https://testnets-api.opensea.io/api/v1/asset/";
-    public static final String OPENSEA_SINGLE_ASSET_API_MATIC = "https://api.opensea.io/api/v2/metadata/matic/";
-    public static final String OPENSEA_SINGLE_ASSET_API_ARBITRUM = "https://api.opensea.io/api/v2/metadata/arbitrum/";
-    public static final String OPENSEA_SINGLE_ASSET_API_AVALANCHE = "https://api.opensea.io/api/v2/metadata/avalanche/";
-    public static final String OPENSEA_SINGLE_ASSET_API_KLAYTN = "https://api.opensea.io/api/v2/metadata/klaytn/";
-    public static final String OPENSEA_SINGLE_ASSET_API_OPTIMISM = "https://api.opensea.io/api/v2/metadata/optimism/";
-
+    public static final String OPENSEA_ASSETS_API_V2 = "https://api.opensea.io/api/v2/chain/{CHAIN}/account/{ADDRESS}/nfts";
+    public static final String OPENSEA_NFT_API_V2 = "https://api.opensea.io/api/v2/chain/{CHAIN}/contract/{ADDRESS}/nfts/{TOKEN_ID}";
 
     //Timing
     public static long CONNECT_TIMEOUT = 10; //Seconds

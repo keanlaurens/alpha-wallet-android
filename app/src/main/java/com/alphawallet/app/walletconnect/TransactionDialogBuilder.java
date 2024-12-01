@@ -24,6 +24,7 @@ import com.alphawallet.app.entity.Wallet;
 import com.alphawallet.app.entity.WalletType;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.entity.walletconnect.SignType;
+import com.alphawallet.app.service.GasService;
 import com.alphawallet.app.ui.widget.entity.ActionSheetCallback;
 import com.alphawallet.app.viewmodel.WalletConnectViewModel;
 import com.alphawallet.app.walletconnect.entity.WCEthereumTransaction;
@@ -77,6 +78,7 @@ public class TransactionDialogBuilder extends DialogFragment
         viewModel.transactionFinalised().observe(this, this::txWritten);
         viewModel.transactionSigned().observe(this, this::txSigned);
         viewModel.transactionError().observe(this, this::txError);
+        viewModel.startGasCycle(WalletConnectHelper.getChainId(Objects.requireNonNull(sessionRequest.getChainId())));
     }
 
     @NonNull
@@ -110,6 +112,12 @@ public class TransactionDialogBuilder extends DialogFragment
             public WalletType getWalletType()
             {
                 return fromWallet.type;
+            }
+
+            @Override
+            public GasService getGasService()
+            {
+                return viewModel.getGasService();
             }
 
             @Override
@@ -226,6 +234,10 @@ public class TransactionDialogBuilder extends DialogFragment
         {
             awWalletConnectClient.reject(sessionRequest);
         }
+        if (viewModel != null)
+        {
+            viewModel.onDestroy();
+        }
     }
 
     @Override
@@ -236,6 +248,10 @@ public class TransactionDialogBuilder extends DialogFragment
         if (!isApproved)
         {
             awWalletConnectClient.reject(sessionRequest);
+        }
+        if (viewModel != null)
+        {
+            viewModel.onDestroy();
         }
     }
 }

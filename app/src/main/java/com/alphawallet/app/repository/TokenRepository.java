@@ -2,7 +2,9 @@ package com.alphawallet.app.repository;
 
 import static com.alphawallet.ethereum.EthereumNetworkBase.MAINNET_ID;
 import static com.alphawallet.ethereum.EthereumNetworkBase.OKX_ID;
+import static com.alphawallet.ethereum.EthereumNetworkBase.POLYGON_TEST_ID;
 import static org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction;
+import static java.util.Arrays.asList;
 
 import android.content.Context;
 import android.text.TextUtils;
@@ -14,6 +16,7 @@ import androidx.annotation.Nullable;
 import com.alphawallet.app.C;
 import com.alphawallet.app.entity.ContractLocator;
 import com.alphawallet.app.entity.ContractType;
+import com.alphawallet.app.entity.ImageEntry;
 import com.alphawallet.app.entity.NetworkInfo;
 import com.alphawallet.app.entity.TransferFromEventResponse;
 import com.alphawallet.app.entity.Wallet;
@@ -94,7 +97,9 @@ public class TokenRepository implements TokenRepositoryType {
     public static final BigInteger INTERFACE_BALANCES_721_TICKET = new BigInteger ("c84aae17", 16);
     public static final BigInteger INTERFACE_SUPERRARE = new BigInteger ("5b5e139f", 16);
     public static final BigInteger INTERFACE_ERC1155 = new BigInteger("d9b67a26", 16);
+    public static final BigInteger INTERFACE_ERC20 = new BigInteger("36372b07", 16);
     public static final BigInteger INTERFACE_ERC721_ENUMERABLE = new BigInteger("780e9d63", 16);
+    public static final BigInteger INTERFACE_ERC404 = new BigInteger("b374afc4", 16);
 
     private static final int NODE_COMMS_ERROR = -1;
     private static final int CONTRACT_BALANCE_NULL = -2;
@@ -106,25 +111,29 @@ public class TokenRepository implements TokenRepositoryType {
     public TokenRepository(
             EthereumNetworkRepositoryType ethereumNetworkRepository,
             TokenLocalSource localSource,
-            OkHttpClient okClient,
             Context context,
             TickerService tickerService) {
         this.ethereumNetworkRepository = ethereumNetworkRepository;
         this.localSource = localSource;
         this.ethereumNetworkRepository.addOnChangeDefaultNetwork(this::buildWeb3jClient);
-        this.okClient = okClient;
         this.context = context;
         this.tickerService = tickerService;
 
         web3jNodeServers = new ConcurrentHashMap<>();
         currentAddress = ethereumNetworkRepository.getCurrentWalletAddress();
+
+        okClient = new OkHttpClient.Builder()
+                .connectTimeout(C.CONNECT_TIMEOUT * 4, TimeUnit.SECONDS) //events can take longer to render
+                .connectTimeout(C.READ_TIMEOUT * 4, TimeUnit.SECONDS)
+                .writeTimeout(C.LONG_WRITE_TIMEOUT, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
+                .build();
     }
 
     private void buildWeb3jClient(NetworkInfo networkInfo)
     {
-        AWHttpService publicNodeService = new AWHttpService(networkInfo.rpcServerUrl, networkInfo.backupNodeUrl, okClient, false);
-        HttpServiceHelper.addRequiredCredentials(networkInfo.chainId, publicNodeService, KeyProviderFactory.get().getKlaytnKey(),
-                KeyProviderFactory.get().getInfuraSecret(), EthereumNetworkBase.usesProductionKey);
+        AWHttpService publicNodeService = new AWHttpService(networkInfo.rpcServerUrl, networkInfo.backupNodeUrl, networkInfo.chainId, okClient, KeyProviderFactory.get().getInfuraKey(),
+                KeyProviderFactory.get().getInfuraSecret(), KeyProviderFactory.get().getKlaytnKey(), false);
         web3jNodeServers.put(networkInfo.chainId, Web3j.build(publicNodeService));
     }
 
@@ -396,7 +405,7 @@ public class TokenRepository implements TokenRepositoryType {
     {
         if (chainId == OKX_ID)
         {
-            return tokenInfoFromOKLinkService(contractAddr); //don't need type here, we can determine that from the return
+            return tokenInfoFromOKLinkService(chainId, contractAddr); //don't need type here, we can determine that from the return
         }
 
         switch (type)
@@ -415,16 +424,9 @@ public class TokenRepository implements TokenRepositoryType {
         }
     }
 
-    private Single<TokenInfo> tokenInfoFromOKLinkService(String contractAddr)
+    private Single<TokenInfo> tokenInfoFromOKLinkService(long chainId, String contractAddr)
     {
-        OkHttpClient okClient = new OkHttpClient.Builder()
-            .connectTimeout(C.CONNECT_TIMEOUT * 3, TimeUnit.SECONDS) //events can take longer to render
-            .connectTimeout(C.READ_TIMEOUT * 3, TimeUnit.SECONDS)
-            .writeTimeout(C.LONG_WRITE_TIMEOUT, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(true)
-            .build();
-
-        return Single.fromCallable(() -> OkLinkService.get(okClient).getTokenInfo(contractAddr)).observeOn(Schedulers.io());
+        return Single.fromCallable(() -> OkLinkService.get(okClient).getTokenInfo(chainId, contractAddr)).observeOn(Schedulers.io());
     }
 
     @Override
@@ -1011,7 +1013,16 @@ public class TokenRepository implements TokenRepositoryType {
                     = createEthCallTransaction(wallet.address, contractAddress, encodedFunction);
             EthCall response = getService(network.chainId).ethCall(transaction, DefaultBlockParameterName.LATEST).send();
 
-            return response.getValue();
+            if (response.hasError() && response.getError().getMessage().equals("execution reverted"))
+            {
+                //contract does not have this function
+                //TODO: Handle this
+                return null;
+            }
+            else
+            {
+                return response.getValue();
+            }
         }
         catch (InterruptedIOException|UnknownHostException|JsonParseException e)
         {
@@ -1051,7 +1062,7 @@ public class TokenRepository implements TokenRepositoryType {
     }
 
     public static byte[] createTokenTransferData(String to, BigInteger tokenAmount) {
-        List<Type> params = Arrays.asList(new Address(to), new Uint256(tokenAmount));
+        List<Type> params = asList(new Address(to), new Uint256(tokenAmount));
         List<TypeReference<?>> returnTypes = Collections.singletonList(new TypeReference<Bool>() {});
         Function function = new Function("transfer", params, returnTypes);
         String encodedFunction = FunctionEncoder.encode(function);
@@ -1075,7 +1086,7 @@ public class TokenRepository implements TokenRepositoryType {
     public static byte[] createERC721TransferFunction(String from, String to, String token, BigInteger tokenId)
     {
         List<TypeReference<?>> returnTypes = Collections.emptyList();
-        List<Type> params = Arrays.asList(new Address(from), new Address(to), new Uint256(tokenId));
+        List<Type> params = asList(new Address(from), new Address(to), new Uint256(tokenId));
         Function function = new Function("safeTransferFrom", params, returnTypes);
 
         String encodedFunction = FunctionEncoder.encode(function);
@@ -1100,7 +1111,7 @@ public class TokenRepository implements TokenRepositoryType {
     {
         Function function = new Function(
                 "dropCurrency",
-                Arrays.asList(new org.web3j.abi.datatypes.generated.Uint32(order.nonce),
+                asList(new org.web3j.abi.datatypes.generated.Uint32(order.nonce),
                               new org.web3j.abi.datatypes.generated.Uint32(order.amount),
                               new org.web3j.abi.datatypes.generated.Uint32(order.expiry),
                               new org.web3j.abi.datatypes.generated.Uint8(v),
@@ -1211,6 +1222,10 @@ public class TokenRepository implements TokenRepositoryType {
                     returnType = ContractType.ERC721_ENUMERABLE;
                 else if (getContractData(network, tokenInfo.address, supportsInterface(INTERFACE_OFFICIAL_ERC721), Boolean.TRUE))
                     returnType = ContractType.ERC721;
+                else if (getContractData(network, tokenInfo.address, supportsInterface(INTERFACE_ERC20), Boolean.TRUE))
+                    returnType = ContractType.ERC20;
+                else if (getContractData(network, tokenInfo.address, supportsInterface(INTERFACE_ERC404), Boolean.TRUE))
+                    returnType = ContractType.ERC20;
                 else if (getContractData(network, tokenInfo.address, supportsInterface(INTERFACE_SUPERRARE), Boolean.TRUE))
                     returnType = ContractType.ERC721;
                 else if (getContractData(network, tokenInfo.address, supportsInterface(INTERFACE_ERC1155), Boolean.TRUE))
@@ -1281,9 +1296,9 @@ public class TokenRepository implements TokenRepositoryType {
     }
 
     @Override
-    public void addImageUrl(long networkId, String address, String imageUrl)
+    public void addImageUrl(List<ImageEntry> entries)
     {
-        localSource.storeTokenUrl(networkId, address, imageUrl);
+        localSource.storeTokenUrl(entries);
     }
 
     public static Web3j getWeb3jServiceForEvents(long chainId)
@@ -1302,9 +1317,8 @@ public class TokenRepository implements TokenRepositoryType {
             secondaryNode = EthereumNetworkRepository.getNodeURLByNetworkId(chainId);
         }
 
-        AWHttpService publicNodeService = new AWHttpService(nodeUrl, secondaryNode, okClient, false);
-        HttpServiceHelper.addRequiredCredentials(chainId, publicNodeService, KeyProviderFactory.get().getKlaytnKey(),
-                KeyProviderFactory.get().getInfuraSecret(), EthereumNetworkBase.usesProductionKey);
+        AWHttpService publicNodeService = new AWHttpService(nodeUrl, secondaryNode, chainId, okClient, KeyProviderFactory.get().getInfuraKey(),
+                KeyProviderFactory.get().getInfuraSecret(), KeyProviderFactory.get().getKlaytnKey(), false);
         return Web3j.build(publicNodeService);
     }
 
@@ -1312,14 +1326,13 @@ public class TokenRepository implements TokenRepositoryType {
     {
         OkHttpClient okClient = new OkHttpClient.Builder()
                 .connectTimeout(C.CONNECT_TIMEOUT, TimeUnit.SECONDS)
-                .connectTimeout(C.READ_TIMEOUT, TimeUnit.SECONDS)
+                .connectTimeout(C.READ_TIMEOUT * 3, TimeUnit.SECONDS)
                 .writeTimeout(C.LONG_WRITE_TIMEOUT, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(true)
                 .build();
 
-        AWHttpService publicNodeService = new AWHttpService(EthereumNetworkRepository.getNodeURLByNetworkId(chainId), EthereumNetworkRepository.getSecondaryNodeURL(chainId), okClient, false);
-        HttpServiceHelper.addRequiredCredentials(chainId, publicNodeService, KeyProviderFactory.get().getKlaytnKey(),
-                KeyProviderFactory.get().getInfuraSecret(), EthereumNetworkBase.usesProductionKey);
+        AWHttpService publicNodeService = new AWHttpService(EthereumNetworkRepository.getNodeURLByNetworkId(chainId), EthereumNetworkRepository.getSecondaryNodeURL(chainId), chainId, okClient, KeyProviderFactory.get().getInfuraKey(),
+                KeyProviderFactory.get().getInfuraSecret(), KeyProviderFactory.get().getKlaytnKey(), false);
         return Web3j.build(publicNodeService);
     }
 
@@ -1346,7 +1359,38 @@ public class TokenRepository implements TokenRepositoryType {
             //
         }
 
-        return null;
+        return "";
+    }
+
+    public static List<String> callSmartContractFuncAdaptiveArray(long chainId,
+                                                   Function function, String contractAddress, String walletAddr)
+    {
+        String encodedFunction = FunctionEncoder.encode(function);
+
+        try
+        {
+            org.web3j.protocol.core.methods.request.Transaction transaction
+                    = createEthCallTransaction(walletAddr, contractAddress, encodedFunction);
+            EthCall response = getWeb3jService(chainId).ethCall(transaction, DefaultBlockParameterName.LATEST).send();
+
+            List<Type> responseValues = FunctionReturnDecoder.decode(response.getValue(), function.getOutputParameters());
+            List<Type> responseValuesArray = Utils.decodeDynamicArray(response.getValue());
+
+            if (!responseValuesArray.isEmpty()) // if arrays are found, return these as the filter is more strict
+            {
+                return (List<String>)Utils.asAList(responseValuesArray, " ");
+            }
+            if (!responseValues.isEmpty())
+            {
+                return Collections.singletonList(responseValues.get(0).getValue().toString());
+            }
+        }
+        catch (Exception e)
+        {
+            //
+        }
+
+        return new ArrayList<>();
     }
 
     public static List callSmartContractFunctionArray(long chainId,

@@ -39,6 +39,7 @@ import com.alphawallet.app.service.IPFSServiceType;
 import com.alphawallet.app.service.KeyService;
 import com.alphawallet.app.service.KeystoreAccountService;
 import com.alphawallet.app.service.NotificationService;
+import com.alphawallet.app.service.OkLinkService;
 import com.alphawallet.app.service.OpenSeaService;
 import com.alphawallet.app.service.RealmManager;
 import com.alphawallet.app.service.SwapService;
@@ -168,14 +169,12 @@ public class RepositoriesModule
     TokenRepositoryType provideTokenRepository(
         EthereumNetworkRepositoryType ethereumNetworkRepository,
         TokenLocalSource tokenLocalSource,
-        OkHttpClient httpClient,
         @ApplicationContext Context context,
         TickerService tickerService)
     {
         return new TokenRepository(
             ethereumNetworkRepository,
             tokenLocalSource,
-            httpClient,
             context,
             tickerService);
     }
@@ -200,9 +199,10 @@ public class RepositoriesModule
                                         TokenRepositoryType tokenRepository,
                                         TickerService tickerService,
                                         OpenSeaService openseaService,
-                                        AnalyticsServiceType analyticsService)
+                                        AnalyticsServiceType analyticsService,
+                                        OkHttpClient client)
     {
-        return new TokensService(ethereumNetworkRepository, tokenRepository, tickerService, openseaService, analyticsService);
+        return new TokensService(ethereumNetworkRepository, tokenRepository, tickerService, openseaService, analyticsService, client);
     }
 
     @Singleton
@@ -246,9 +246,9 @@ public class RepositoriesModule
 
     @Singleton
     @Provides
-    AlphaWalletService provideFeemasterService(OkHttpClient okHttpClient, TransactionRepositoryType transactionRepository, Gson gson)
+    AlphaWalletService provideFeemasterService(OkHttpClient okHttpClient, Gson gson)
     {
-        return new AlphaWalletService(okHttpClient, transactionRepository, gson);
+        return new AlphaWalletService(okHttpClient, gson);
     }
 
     @Singleton

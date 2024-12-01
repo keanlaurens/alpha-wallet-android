@@ -5,7 +5,6 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -23,15 +22,12 @@ import com.alphawallet.app.repository.TokensRealmSource;
 import com.alphawallet.app.repository.entity.RealmAuxData;
 import com.alphawallet.app.service.AssetDefinitionService;
 import com.alphawallet.app.service.TokensService;
-import com.alphawallet.app.ui.TokenActivity;
 import com.alphawallet.app.ui.TransactionDetailActivity;
 import com.alphawallet.app.util.BalanceUtils;
 import com.alphawallet.app.util.Utils;
-import com.alphawallet.app.widget.ChainName;
 import com.alphawallet.app.widget.TokenIcon;
 import com.alphawallet.token.entity.EventDefinition;
 import com.alphawallet.token.entity.TSTokenView;
-import com.alphawallet.token.tools.Numeric;
 import com.alphawallet.token.tools.TokenDefinition;
 
 import java.math.BigDecimal;
@@ -40,7 +36,6 @@ import java.util.Map;
 
 import static com.alphawallet.app.service.AssetDefinitionService.ASSET_SUMMARY_VIEW_NAME;
 import static com.alphawallet.app.ui.widget.holder.TransactionHolder.DEFAULT_ADDRESS_ADDITIONAL;
-import static com.alphawallet.ethereum.EthereumNetworkBase.MAINNET_ID;
 
 /**
  * Created by JB on 28/07/2020.
@@ -56,11 +51,9 @@ public class EventHolder extends BinderViewHolder<EventMeta> implements View.OnC
     private final AssetDefinitionService assetDefinition;
     private final AdapterCallback refreshSignaller;
     private Token token;
-    private BigInteger tokenId = BigInteger.ZERO;
     private final FetchTransactionsInteract fetchTransactionsInteract;
     private final TokensService tokensService;
     private String eventKey;
-    private boolean fromTokenView;
     private Transaction transaction;
 
     public EventHolder(ViewGroup parent, TokensService service, FetchTransactionsInteract interact,
@@ -82,11 +75,10 @@ public class EventHolder extends BinderViewHolder<EventMeta> implements View.OnC
     @Override
     public void bind(@Nullable EventMeta data, @NonNull Bundle addition)
     {
-        fromTokenView = false;
         String walletAddress = addition.getString(DEFAULT_ADDRESS_ADDITIONAL);
         //pull event details from DB
         eventKey = TokensRealmSource.eventActivityKey(data.hash, data.eventName);
-        tokenId = BigInteger.ZERO;
+        findViewById(R.id.token_name_detail).setVisibility(View.GONE);
 
         RealmAuxData eventData = fetchTransactionsInteract.fetchEvent(walletAddress, eventKey);
         transaction = fetchTransactionsInteract.fetchCached(walletAddress, data.hash);
@@ -101,14 +93,14 @@ public class EventHolder extends BinderViewHolder<EventMeta> implements View.OnC
 
         if (token == null) token = tokensService.getToken(data.chainId, walletAddress);
         String sym = token.getShortSymbol();
-        tokenIcon.bindData(token, assetDefinition);
+        tokenIcon.bindData(token);
         String itemView = null;
 
         TokenDefinition td = assetDefinition.getAssetDefinition(token);
         if (td != null && td.getActivityCards().containsKey(eventData.getFunctionId()))
         {
             TSTokenView view = td.getActivityCards().get(eventData.getFunctionId()).getView(ASSET_SUMMARY_VIEW_NAME);
-            if (view != null) itemView = view.tokenView;
+            if (view != null) itemView = view.getTokenView();
         }
 
         String transactionValue = getEventAmount(eventData, transaction);
@@ -122,7 +114,7 @@ public class EventHolder extends BinderViewHolder<EventMeta> implements View.OnC
             value.setText(getString(R.string.valueSymbol, transactionValue, sym));
         }
 
-        CharSequence typeValue = Utils.createFormattedValue(getContext(), getTitle(eventData), token);
+        CharSequence typeValue = Utils.createFormattedValue(getTitle(eventData), token);
 
         type.setText(typeValue);
         //symbol.setText(sym);
@@ -133,12 +125,6 @@ public class EventHolder extends BinderViewHolder<EventMeta> implements View.OnC
         //timestamp
         date.setText(Utils.localiseUnixTime(getContext(), eventData.getResultTime()));
         date.setVisibility(View.VISIBLE);
-    }
-
-    @Override
-    public void setFromTokenView()
-    {
-        fromTokenView = true;
     }
 
     private String getEventAmount(RealmAuxData eventData, Transaction tx)

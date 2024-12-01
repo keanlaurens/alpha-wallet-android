@@ -457,6 +457,51 @@ public class AWRealmMigration implements RealmMigration
 
             oldVersion = 51;
         }
+
+        if (oldVersion == 51)
+        {
+            RealmObjectSchema realmData = schema.get("RealmTokenScriptData");
+            if (realmData != null && !realmData.hasField("schemaUID"))
+            {
+                realmData.addField("schemaUID", String.class);
+            }
+
+            realmData = schema.get("RealmAttestation");
+            if (realmData != null && !realmData.hasField("identifierHash"))
+            {
+                realmData.addField("identifierHash", String.class);
+            }
+
+            if (realmData != null && realmData.hasField("hash"))
+            {
+                realmData.renameField("hash", "schemaUID");
+            }
+
+            oldVersion = 52;
+        }
+
+        if (oldVersion == 52)
+        {
+            RealmObjectSchema realmData = schema.get("RealmAttestation");
+            if (realmData != null && realmData.hasField("schemaUID"))
+            {
+                realmData.renameField("schemaUID", "collectionId");
+            }
+
+            oldVersion = 53;
+        }
+
+        if (oldVersion == 53)
+        {
+            RealmObjectSchema realmData = schema.get("Realm1559Gas");
+            if (realmData != null) schema.remove("Realm1559Gas");
+            schema.create("Realm1559Gas")
+                    .addField("chainId", long.class, FieldAttribute.PRIMARY_KEY)
+                    .addField("timeStamp", long.class)
+                    .addField("resultData", String.class);
+
+            oldVersion = 54;
+        }
     }
 
     @Override

@@ -6,7 +6,7 @@ import com.alphawallet.app.entity.QRResult;
 import com.alphawallet.app.ui.widget.entity.ENSHandler;
 import com.alphawallet.token.entity.ChainSpec;
 import com.alphawallet.token.entity.MagicLinkInfo;
-import com.alphawallet.token.tools.Numeric;
+import org.web3j.utils.Numeric;
 
 import java.math.BigInteger;
 import java.net.URL;
@@ -89,16 +89,16 @@ public class QRParser {
 
         if (url == null) return null;
 
-        if (Utils.hasAttestation(url))
+        if (Utils.hasEASAttestation(url))
         {
             result = new QRResult(url);
             result.type = EIP681Type.EAS_ATTESTATION;
-            result.functionDetail = Utils.decompress(url);
+            String taglessAttestation = Utils.parseEASAttestation(url);
+            result.functionDetail = Utils.toAttestationJson(taglessAttestation);
             return result;
         }
 
         String[] parts = url.split(":");
-
 
         if (url.startsWith("wc:"))
         {

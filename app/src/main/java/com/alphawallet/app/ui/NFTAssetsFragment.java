@@ -5,7 +5,6 @@ import static android.app.Activity.RESULT_OK;
 import static com.alphawallet.app.C.SIGNAL_NFT_SYNC;
 import static com.alphawallet.app.C.SYNC_STATUS;
 
-import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -26,9 +25,6 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
-import androidx.core.content.pm.ShortcutInfoCompat;
-import androidx.core.content.pm.ShortcutManagerCompat;
-import androidx.core.graphics.drawable.IconCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -38,9 +34,7 @@ import com.alphawallet.app.C;
 import com.alphawallet.app.R;
 import com.alphawallet.app.entity.Wallet;
 import com.alphawallet.app.entity.nftassets.NFTAsset;
-import com.alphawallet.app.entity.tokens.Attestation;
 import com.alphawallet.app.entity.tokens.Token;
-import com.alphawallet.app.repository.EthereumNetworkRepository;
 import com.alphawallet.app.service.AssetDefinitionService;
 import com.alphawallet.app.ui.widget.OnAssetClickListener;
 import com.alphawallet.app.ui.widget.TokensAdapterCallback;
@@ -56,6 +50,7 @@ import java.math.BigInteger;
 import java.util.List;
 
 import dagger.hilt.android.AndroidEntryPoint;
+import timber.log.Timber;
 
 @AndroidEntryPoint
 public class NFTAssetsFragment extends BaseFragment implements OnAssetClickListener, TokensAdapterCallback {
@@ -111,7 +106,7 @@ public class NFTAssetsFragment extends BaseFragment implements OnAssetClickListe
 
             gridItemDecoration = new ItemOffsetDecoration(requireContext(), R.dimen.grid_divider_offset);
 
-            if (hasTokenScriptOverride(token))
+            if (hasTokenScriptOverride(token) && token.isERC875())
             {
                 showListView();
             }
@@ -194,15 +189,22 @@ public class NFTAssetsFragment extends BaseFragment implements OnAssetClickListe
 
     public void showListView()
     {
-        recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
-        recyclerView.removeItemDecoration(gridItemDecoration);
-        recyclerView.setPadding(0, 0, 0, 0);
-        initAndAttachAdapter(false);
+        try
+        {
+            recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+            recyclerView.removeItemDecoration(gridItemDecoration);
+            recyclerView.setPadding(0, 0, 0, 0);
+            initAndAttachAdapter(false);
+        }
+        catch (Exception e)
+        {
+            Timber.e(e);
+        }
     }
 
     private void initAndAttachAdapter(boolean isGridView)
     {
-        if (hasTokenScriptOverride(token))
+        if (hasTokenScriptOverride(token) && token.isERC875())
         {
             searchLayout.setVisibility(View.GONE);
             adapter = new NonFungibleTokenAdapter(this, token, viewModel.getAssetDefinitionService(), viewModel.getOpenseaService(), isGridView);

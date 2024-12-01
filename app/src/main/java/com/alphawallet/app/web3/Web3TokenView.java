@@ -1,14 +1,9 @@
 package com.alphawallet.app.web3;
 
-import static androidx.webkit.WebSettingsCompat.FORCE_DARK_OFF;
-import static androidx.webkit.WebSettingsCompat.FORCE_DARK_ON;
-import static com.alphawallet.app.service.AssetDefinitionService.ASSET_DETAIL_VIEW_NAME;
-import static com.alphawallet.app.service.AssetDefinitionService.ASSET_SUMMARY_VIEW_NAME;
 import static com.alphawallet.token.tools.TokenDefinition.TOKENSCRIPT_ERROR;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
-import android.content.res.Configuration;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Base64;
@@ -16,8 +11,8 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
+import android.webkit.JsResult;
 import android.webkit.WebChromeClient;
-import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -32,18 +27,19 @@ import androidx.webkit.WebViewFeature;
 
 import com.alphawallet.app.BuildConfig;
 import com.alphawallet.app.R;
+import com.alphawallet.app.entity.UpdateType;
 import com.alphawallet.app.entity.tokens.Token;
 import com.alphawallet.app.entity.tokenscript.TokenScriptRenderCallback;
 import com.alphawallet.app.entity.tokenscript.WebCompletionCallback;
 import com.alphawallet.app.repository.entity.RealmAuxData;
 import com.alphawallet.app.service.AssetDefinitionService;
-import com.alphawallet.app.util.Utils;
 import com.alphawallet.app.web3.entity.Address;
 import com.alphawallet.app.web3.entity.FunctionCallback;
 import com.alphawallet.app.web3.entity.PageReadyCallback;
 import com.alphawallet.app.web3.entity.Web3Transaction;
 import com.alphawallet.token.entity.EthereumMessage;
 import com.alphawallet.token.entity.Signable;
+import com.alphawallet.token.entity.TSTokenView;
 import com.alphawallet.token.entity.TicketRange;
 import com.alphawallet.token.entity.TokenScriptResult;
 import com.alphawallet.token.entity.ViewType;
@@ -51,13 +47,13 @@ import com.alphawallet.token.tools.TokenDefinition;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.io.LineNumberReader;
-import java.io.StringReader;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Objects;
 
 import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 import io.realm.Realm;
 import io.realm.RealmResults;
@@ -85,11 +81,15 @@ public class Web3TokenView extends WebView
     private RealmResults<RealmAuxData> realmAuxUpdates;
 
     protected WebCompletionCallback keyPressCallback;
+    @Nullable
+    private Disposable buildViewAttrs;
 
     @Nullable
     private OnSignPersonalMessageListener onSignPersonalMessageListener;
     @Nullable
     private OnSetValuesListener onSetValuesListener;
+
+    private String attrResults;
 
     public Web3TokenView(@NonNull Context context) {
         super(context);
@@ -123,18 +123,9 @@ public class Web3TokenView extends WebView
                                                + "AlphaWallet(Platform=Android&AppVersion=" + BuildConfig.VERSION_NAME + ")");
         WebView.setWebContentsDebuggingEnabled(true);
 
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK))
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING))
         {
-            switch (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
-            {
-                case Configuration.UI_MODE_NIGHT_YES:
-                    WebSettingsCompat.setForceDark(getSettings(), FORCE_DARK_ON);
-                    break;
-                case Configuration.UI_MODE_NIGHT_NO:
-                case Configuration.UI_MODE_NIGHT_UNDEFINED:
-                    WebSettingsCompat.setForceDark(getSettings(), FORCE_DARK_OFF);
-                    break;
-            }
+            WebSettingsCompat.setAlgorithmicDarkeningAllowed(getSettings(), true);
         }
 
         setScrollBarSize(0);
@@ -151,45 +142,24 @@ public class Web3TokenView extends WebView
                 innerOnSignPersonalMessageListener,
                 innerOnSetValuesListener), "alpha");
 
-        super.setWebViewClient(tokenScriptClient);
-
         setWebChromeClient(new WebChromeClient()
         {
             @Override
             public boolean onConsoleMessage(ConsoleMessage msg)
             {
-                if (!showingError && msg.messageLevel() == ConsoleMessage.MessageLevel.ERROR)
-                {
-                    if (msg.message().contains(REFRESH_ERROR)) return true; //don't stop for refresh error
-                    String errorLine = "";
-                    try
-                    {
-                        LineNumberReader lineNumberReader = new LineNumberReader(new StringReader(unencodedPage));
-                        lineNumberReader.setLineNumber(0);
+                Timber.w("Web3Token Message: %s", msg.message());
+                return true;
+            }
 
-                        String lineStr;
-                        while ((lineStr = lineNumberReader.readLine()) != null)
-                        {
-                            if (lineNumberReader.getLineNumber() == msg.lineNumber())
-                            {
-                                errorLine = Utils.escapeHTML(lineStr); //ensure string is displayed exactly how it is read
-                                break;
-                            }
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        errorLine = "";
-                    }
-
-                    String errorMessage = RENDERING_ERROR.replace("${ERR1}", msg.message());
-                    if (!TextUtils.isEmpty(errorLine)) errorMessage += RENDERING_ERROR_SUPPLIMENTAL.replace("$ERR1", String.valueOf(msg.lineNumber())).replace("$ERR2", errorLine); //.replace("$ERR2", errorMessage)
-                    showError(errorMessage);
-                    unencodedPage = null;
-                }
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, JsResult result)
+            {
+                result.cancel();
                 return true;
             }
         });
+
+        setWebViewClient(tokenScriptClient);
     }
 
     public void showError(String error)
@@ -197,12 +167,6 @@ public class Web3TokenView extends WebView
         showingError = true;
         setVisibility(View.VISIBLE);
         loadData(error, "text/html", "utf-8");
-    }
-
-    @Override
-    public void setWebChromeClient(WebChromeClient client)
-    {
-        super.setWebChromeClient(client);
     }
 
     @JavascriptInterface
@@ -226,17 +190,26 @@ public class Web3TokenView extends WebView
                     {
                         callback.functionSuccess();
                     }
+
+                    @Override
+                    public boolean onConsoleMessage(ConsoleMessage msg)
+                    {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean onJsAlert(WebView view, String url, String message, JsResult result)
+                    {
+                        result.cancel();
+                        return true;
+                    }
                 }
         );
     }
 
-    public void setChainId(long chainId) {
-        jsInjectorClient.setChainId(chainId);
-    }
-
-    public void setRpcUrl(@NonNull String useRPC)
+    public void setChainId(long chainId)
     {
-        jsInjectorClient.setRpcUrl(useRPC);
+        jsInjectorClient.setTSChainId(chainId);
     }
 
     public void onSignPersonalMessageSuccessful(@NotNull Signable message, String signHex) {
@@ -383,22 +356,16 @@ public class Web3TokenView extends WebView
         }
 
         @Override
-        public boolean shouldOverrideUrlLoading(WebView view, String url)
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request)
         {
             if (assetHolder != null)
             {
-                return assetHolder.overridePageLoad(view, url);
+                return assetHolder.overridePageLoad(view, request.getUrl().toString());
             }
             else
             {
                 return false;
             }
-        }
-
-        @Override
-        public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error)
-        {
-            showError(RENDERING_ERROR.replace("${ERR1}", error.getDescription()));
         }
     }
 
@@ -432,7 +399,7 @@ public class Web3TokenView extends WebView
         if (td != null && td.holdingToken != null)
         {
             //use webview
-            renderTokenscriptView(token, range, assetService, iconified);
+            renderTokenScriptInfoView(token, range, assetService, iconified, td);
         }
         else
         {
@@ -456,18 +423,27 @@ public class Web3TokenView extends WebView
         loadData(displayData, "text/html", "utf-8");
     }
 
-    public void renderTokenscriptView(Token token, TicketRange range, AssetDefinitionService assetService, ViewType itemView)
+    public boolean renderTokenScriptInfoView(Token token, TicketRange range, AssetDefinitionService assetService, ViewType itemView,
+                                         final TokenDefinition td)
     {
         BigInteger tokenId = range.tokenIds.get(0);
+        TSTokenView tokenView = td.getTSTokenView("Info");
+        if (tokenView == null)
+        {
+            return false;
+        }
 
-        final StringBuilder attrs = assetService.getTokenAttrs(token, tokenId, range.tokenIds.size());
+        attrResults = "";
 
-        assetService.resolveAttrs(token, null, tokenId, assetService.getTokenViewLocalAttributes(token), itemView)
+        final StringBuilder attrs = assetService.getTokenAttrs(token, tokenId, range.balance);
+
+        buildViewAttrs = assetService.resolveAttrs(token, null, tokenId, assetService.getTokenViewLocalAttributes(token), itemView, UpdateType.USE_CACHE)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(attr -> onAttr(attr, attrs), throwable -> onError(token, throwable, range),
-                           () -> displayTicket(token, assetService, attrs, itemView, range))
-                .isDisposed();
+                           () -> displayTokenView(token, assetService, attrs, itemView, range, td, tokenView));
+
+        return true;
     }
 
     /**
@@ -478,29 +454,21 @@ public class Web3TokenView extends WebView
      * @param iconified
      * @param range
      */
-    private void displayTicket(Token token, AssetDefinitionService assetService, StringBuilder attrs, ViewType iconified, TicketRange range)
+    private void displayTokenView(Token token, AssetDefinitionService assetService, StringBuilder attrs, ViewType iconified, TicketRange range, final TokenDefinition td, final TSTokenView tokenView)
     {
         setVisibility(View.VISIBLE);
-        String viewName;
-        switch (iconified)
-        {
-            case VIEW:
-            default:
-                viewName = ASSET_DETAIL_VIEW_NAME;
-                break;
-            case ITEM_VIEW:
-                viewName = ASSET_SUMMARY_VIEW_NAME;
-                break;
-        }
 
-        String view = assetService.getTokenView(token, viewName);
-        if (TextUtils.isEmpty(view)) view = buildViewError(token, range, viewName);
-        String style = assetService.getTokenViewStyle(token, viewName);
+        String view = tokenView.getTokenView();
+        if (TextUtils.isEmpty(view))
+        {
+            view = buildViewError(token, range, tokenView.getLabel());
+        }
+        String style = tokenView.getStyle();
         unencodedPage = injectWeb3TokenInit(view, attrs.toString(), range.tokenIds.get(0));
         unencodedPage = injectStyleAndWrapper(unencodedPage, style); //style injected last so it comes first
 
         String base64 = android.util.Base64.encodeToString(unencodedPage.getBytes(StandardCharsets.UTF_8), Base64.DEFAULT);
-        loadData(base64, "text/html; charset=utf-8", "base64");
+        loadData(base64 + (!Objects.equals(tokenView.getUrlFragment(), "") ? "#" + tokenView.getUrlFragment() : ""), "text/html; charset=utf-8", "base64");
 
         if (realmAuxUpdates != null) realmAuxUpdates.removeAllChangeListeners();
         //TODO: Re-do this to use the JavaScript minimal interface
@@ -510,9 +478,10 @@ public class Web3TokenView extends WebView
         realmAuxUpdates = RealmAuxData.getEventListener(realm, token, range.tokenIds.get(0), 1, lastUpdateTime);
         realmAuxUpdates.addChangeListener(realmAux -> {
             if (realmAux.size() == 0) return;
-            //reload token view, updated event will be fetched from DB
-            displayTicketHolder(token, range, assetService, iconified);
+            renderTicketHolder(token, td, range, assetService, iconified);
         });
+
+        invalidate();
     }
 
     private long getLastUpdateTime(Realm realm, Token token, BigInteger tokenId)
@@ -528,6 +497,27 @@ public class Web3TokenView extends WebView
         return lastResultTime + 1;
     }
 
+    public String getAttrResults()
+    {
+        return attrResults;
+    }
+
+    @Override
+    public void onPause()
+    {
+        super.onPause();
+        if (realmAuxUpdates != null)
+        {
+            realmAuxUpdates.removeAllChangeListeners();
+            if (!realmAuxUpdates.getRealm().isClosed())
+            {
+                realmAuxUpdates.getRealm().close();
+            }
+        }
+
+        loadData("", "text/html", "utf-8");
+    }
+
     @Override
     public void destroy()
     {
@@ -540,6 +530,11 @@ public class Web3TokenView extends WebView
             {
                 realmAuxUpdates.getRealm().close();
             }
+        }
+
+        if (buildViewAttrs != null && !buildViewAttrs.isDisposed())
+        {
+            buildViewAttrs.dispose();
         }
     }
 
@@ -578,5 +573,6 @@ public class Web3TokenView extends WebView
     private void onAttr(TokenScriptResult.Attribute attribute, StringBuilder attrs)
     {
         TokenScriptResult.addPair(attrs, attribute.id, attribute.text);
+        attrResults += attribute.text;
     }
 }

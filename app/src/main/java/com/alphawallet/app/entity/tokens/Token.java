@@ -2,9 +2,7 @@ package com.alphawallet.app.entity.tokens;
 
 import static android.text.Html.FROM_HTML_MODE_COMPACT;
 
-import android.app.Activity;
 import android.content.Context;
-import android.os.Build;
 import android.text.Html;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
@@ -23,6 +21,7 @@ import com.alphawallet.app.entity.opensea.AssetContract;
 import com.alphawallet.app.entity.tokendata.TokenGroup;
 import com.alphawallet.app.repository.EthereumNetworkRepository;
 import com.alphawallet.app.repository.EventResult;
+import com.alphawallet.app.repository.TokensRealmSource;
 import com.alphawallet.app.repository.entity.RealmToken;
 import com.alphawallet.app.service.AssetDefinitionService;
 import com.alphawallet.app.service.TokensService;
@@ -31,7 +30,6 @@ import com.alphawallet.app.ui.widget.entity.StatusType;
 import com.alphawallet.app.ui.widget.entity.TokenTransferData;
 import com.alphawallet.app.util.BalanceUtils;
 import com.alphawallet.app.util.Utils;
-import com.alphawallet.app.viewmodel.BaseViewModel;
 import com.alphawallet.token.entity.ContractAddress;
 import com.alphawallet.token.entity.TicketRange;
 import com.alphawallet.token.entity.TokenScriptResult;
@@ -64,6 +62,7 @@ public class Token
 {
     public final static int TOKEN_BALANCE_PRECISION = 4;
     public final static int TOKEN_BALANCE_FOCUS_PRECISION = 5;
+    public static final int MAX_TOKEN_SYMBOL_LENGTH = 8;
 
     public final TokenInfo tokenInfo;
     public BigDecimal balance;
@@ -212,8 +211,8 @@ public class Token
         }
     }
 
-    public String getTokenSymbol(Token token){
-
+    public String getTokenSymbol(Token token)
+    {
         if (!TextUtils.isEmpty(token.tokenInfo.symbol) && token.tokenInfo.symbol.length() > 1)
         {
            return Utils.getIconisedText(token.tokenInfo.symbol);
@@ -276,15 +275,7 @@ public class Token
         }
         else
         {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
-            {
-                return Html.fromHtml(str, FROM_HTML_MODE_COMPACT).toString();
-            }
-            else
-            {
-                //noinspection deprecation
-                return Html.fromHtml(str).toString();
-            }
+            return Html.fromHtml(str, FROM_HTML_MODE_COMPACT).toString();
         }
     }
 
@@ -306,6 +297,28 @@ public class Token
         }
     }
 
+    protected BigDecimal getDecimalValue(String value)
+    {
+        BigDecimal bd = BigDecimal.ZERO;
+        try
+        {
+            bd = new BigDecimal(value);
+        }
+        catch (Exception e)
+        {
+            try
+            {
+                bd = new BigDecimal(new BigInteger(Numeric.cleanHexPrefix(value), 16)); //try hex
+            }
+            catch (Exception hex)
+            {
+                //
+            }
+        }
+
+        return bd;
+    }
+
     public String getSymbol()
     {
         return getShortestNameOrSymbol();
@@ -314,11 +327,6 @@ public class Token
     public String getShortSymbol()
     {
         return Utils.getShortSymbol(getShortestNameOrSymbol());
-    }
-
-    public void clickReact(BaseViewModel viewModel, Activity context)
-    {
-        viewModel.showErc20TokenDetail(context, tokenInfo.address, tokenInfo.symbol, tokenInfo.decimals, this);
     }
 
     public BigDecimal getCorrectedBalance(int scale)
@@ -570,7 +578,7 @@ public class Token
 
     public String convertValue(String prefix, EventResult vResult, int precision)
     {
-        BigDecimal val = (vResult != null) ? new BigDecimal(vResult.value) : BigDecimal.ZERO;
+        BigDecimal val = getDecimalValue(vResult.value);
         return prefix + BalanceUtils.getScaledValueFixed(val,
                 tokenInfo.decimals, precision);
     }
@@ -1070,9 +1078,14 @@ public class Token
         });
     }
 
-    public Single<String> getScriptURI()
+    public Single<List<String>> getScriptURI()
     {
         return contractInteract.getScriptFileURI();
+    }
+
+    public Single<String> getContractURI()
+    {
+        return contractInteract.getContractURIResult();
     }
 
     /**
@@ -1110,6 +1123,17 @@ public class Token
         }
     }
 
+    public String getDatabaseKey()
+    {
+        //pull IDs from the members
+        return TokensRealmSource.databaseKey(tokenInfo.chainId, tokenInfo.address);
+    }
+
+    public String getTSKey(TokenDefinition td)
+    {
+        return getTSKey();
+    }
+
     public Type<?> getIntrinsicType(String name)
     {
         return null;
@@ -1128,5 +1152,15 @@ public class Token
     public String getAttestationCollectionId()
     {
         return getTSKey();
+    }
+
+    public String getAttestationCollectionId(TokenDefinition td)
+    {
+        return getTSKey();
+    }
+
+    public String getFirstImageUrl()
+    {
+        return "";
     }
 }
